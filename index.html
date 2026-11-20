@@ -53,14 +53,16 @@ a.item .arrow{color:var(--rust);font-size:13px}
 
 footer{margin-top:80px;padding:28px 0 60px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:10.5px;color:var(--ink3);letter-spacing:.06em;line-height:2}
 
-@media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:640px){
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:640px){
   body{font-size:15.5px}
   .wrap{padding:0 20px}
   header{padding:44px 0 32px}
   .grid{grid-template-columns:1fr}
   section{padding-top:48px}
 }
+.wiki-back{color:var(--ink2);text-decoration:none;letter-spacing:.06em;white-space:nowrap;font-size:10.5px;text-transform:none;transition:color .15s}
+.wiki-back:hover{color:var(--rust)}
+
 @media print{a.item{break-inside:avoid}}
 </style>
 </head>
@@ -70,7 +72,7 @@ footer{margin-top:80px;padding:28px 0 60px;border-top:1px solid var(--rule);font
 <header>
   <div class="eyebrow" style="display:flex;justify-content:space-between;align-items:baseline;gap:16px">
     <span>Zero-Knowledge Proof · Technical Atlas</span>
-    <a href="https://patrick-andstar.github.io/" title="返回 wjc-wiki 知识库" style="color:var(--ink3);text-decoration:none;letter-spacing:.06em;white-space:nowrap;font-size:10.5px;text-transform:none">← wjc-wiki</a>
+    <a href="https://patrick-andstar.github.io/" title="返回 wjc-wiki 知识库" class="wiki-back">← wjc-wiki</a>
   </div>
   <h1>ZKP 技术图谱</h1>
   <p class="sub">
