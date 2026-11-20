@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>有限域 · 所有运算发生的那个圈 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">有限域</div>
+  <div class="side-s">01 · Finite Fields</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这个模块要解决什么问题</a>
+    <a href="#s2"><span>2</span>直觉：钟表算术</a>
+    <a href="#s3"><span>3</span>定义与符号</a>
+    <a href="#s4"><span>4</span>逆元：除法的真相</a>
+    <a href="#s5"><span>5</span>扩域 Fp²</a>
+    <a href="#s6"><span>6</span>2-adicity</a>
+    <a href="#s7"><span>7</span>手算示例</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="00-03-rings-fields.html">← 00 · 03 环与域（本页前置）</a>
+    <a href="02-01-arithmetization.html">02 · 算术化（用到本页）→</a>
+    <a href="01-02-elliptic-curves.html">下一模块 · 椭圆曲线 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>这个模块要解决什么问题</a></li>
+      <li><a href="#s2"><span>2</span>直觉：钟表算术</a></li>
+      <li><a href="#s3"><span>3</span>定义与符号</a></li>
+      <li><a href="#s4"><span>4</span>逆元</a></li>
+      <li><a href="#s5"><span>5</span>扩域</a></li>
+      <li><a href="#s6"><span>6</span>2-adicity</a></li>
+      <li><a href="#s7"><span>7</span>手算示例</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>01 数学基础</span><span>/</span><b>01 · 01</b></div>
+
+  <header>
+    <h1>有限域：所有运算发生的那个圈</h1>
+    <p class="tagline">
+      ZKP 里的每一个数字，都不是普通整数，而是「模一个大素数」之后的余数。
+      加法会绕回来，除法根本不存在 —— 你得乘逆元。这一页把这件事说到你能手算。
+    </p>
+    <div class="meta">
+      <span class="hot">入门必读</span>
+      <span>≈ 12 min</span>
+      <span>难度 2 / 5</span>
+      <span>前置：00 · 03 环与域</span>
+      <span>被用于：算术化 · 椭圆曲线 · 配对</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      如果用普通整数做证明系统，会有两个致命问题：<strong>数字会无限增长</strong>，
+      以及<strong>无法隐藏任何东西</strong>。
+    </p>
+    <p>
+      第一个问题：电路里做一百万次乘法，结果会有几百万位。证明者算不动，验证者也存不下。
+    </p>
+    <p>
+      第二个问题：整数运算可逆且无噪声。给定 <code>a·b = c</code>，很容易反推。
+      密码学需要「单向」的结构，而整数乘法不是。
+    </p>
+    <p>
+      有限域同时解决这两件事：<strong>所有值都被限制在 <code>0…p−1</code> 之间</strong>（固定大小），
+      而模运算带来的「绕回」性质让某些问题（离散对数）变得极难。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">一个必须接受的取舍</span>
+        <p>
+          域元素没有「大小顺序」，也没有「小数」。所以电路里比较两个数的大小、
+          判断是否溢出，都不能直接做 —— 必须拆成比特或者查表。
+          这是后续所有工程复杂度的源头。
+        </p>
+      </div>
+    </div>
+    <div class="co warn">
+      <div class="i">?</div>
+      <div>
+        <span class="t">如果「域」这个词本身就没画面</span>
+        <p>
+          先绕去 <a href="00-03-rings-fields.html">00 · 03 环与域</a>。
+          那页从「为什么一个运算不够用」讲起，把群 → 环 → 域的层级、零因子、
+          素数为什么关键全部摊开，每一步配手算。回来再读这页会顺得多。<br>
+          顺带一提：<a href="00-04-roots.html">00 · 04 单位根</a> 解释了下文第 06 节的 <code>ω</code> 到底是个什么东西。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：钟表算术，但表盘大小是素数</h2>
+    <p>
+      12 小时制的钟：现在 10 点，过 5 小时是 3 点，不是 15 点。这就是「模 12」。
+    </p>
+    <div class="fml">
+      10 + 5 = 15 ≡ 3 ( mod 12 )
+      <span class="lbl">≡ 读作「同余于」，意思是两边除以 12 的余数相同</span>
+    </div>
+    <p>
+      有限域就是把表盘大小换成一个<strong>大素数 p</strong>。所有加减乘都在这个表盘上转圈。
+    </p>
+    <p>
+      为什么必须是素数？因为如果表盘大小是合数（比如 12），有些数就没有逆元 ——
+      比如 6 在模 12 下，无论乘什么都不会等于 1。而素数表盘上，每个非零数都有逆元。
+      这条性质叫「域」，是后面一切代数操作的前提。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px">表盘大小</th><th>3 有逆元吗</th><th>6 有逆元吗</th></tr></thead>
+        <tbody>
+          <tr><td>12（合数）</td><td>没有（3·4=12≡0）</td><td>没有</td></tr>
+          <tr><td>7（素数）</td><td>有，是 5（3·5=15≡1）</td><td>有，是 6（6·6=36≡1）</td></tr>
+          <tr><td>13（素数）</td><td>有，是 9（3·9=27≡1）</td><td>有，是 11（6·11=66≡1）</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>定义与符号：把话钉死</h2>
+    <div class="fml">
+      𝔽<sub><em>p</em></sub> = { 0, 1, 2, …, <em>p</em>−1 } &nbsp;&nbsp;配两种运算 &nbsp;+ , × &nbsp;( mod <em>p</em> )
+      <span class="lbl">p 必须是素数；这个集合加上模运算构成一个「域」</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">符号</th><th>含义</th><th style="width:220px">在 ZKP 里的典型值</th></tr></thead>
+        <tbody>
+          <tr><td><code>p</code></td><td>域的特征，一个素数。所有运算的结果都在 <code>[0, p)</code> 内。</td><td>BN254 的基域约 254 位</td></tr>
+          <tr><td><code>𝔽<sub>p</sub></code></td><td>含 p 个元素的有限域，也叫素域。</td><td>—</td></tr>
+          <tr><td><code>𝔽<sub>p</sub>*</code></td><td>去掉 0 之后的乘法群，含 <code>p−1</code> 个元素。</td><td>所有非零元都能求逆</td></tr>
+          <tr><td><code>a<sup>−1</sup></code></td><td>a 的乘法逆元，满足 <code>a·a<sup>−1</sup> ≡ 1</code>。</td><td>「除法」就是乘它</td></tr>
+          <tr><td><code>ord(a)</code></td><td>a 的阶：最小的正整数 k 使 <code>a<sup>k</sup> = 1</code>。</td><td>生成元的阶等于 p−1</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>三条必须记住的运算规则</h3>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      ( <em>a</em> + <em>b</em> ) mod <em>p</em> &nbsp;&nbsp;<span style="color:#7C8894">← 加完取余，结果仍在 [0,p)</span><br>
+      ( <em>a</em> · <em>b</em> ) mod <em>p</em> &nbsp;&nbsp;<span style="color:#7C8894">← 乘完取余</span><br>
+      <em>a</em> / <em>b</em> &nbsp;:=&nbsp; <em>a</em> · <em>b</em><sup>−1</sup> mod <em>p</em> &nbsp;&nbsp;<span style="color:#A6432B">← 没有除法，只有乘逆元</span>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>逆元：为什么「除以 3」等于「乘以 5」</h2>
+    <p class="lead">
+      这是初学者最常卡住的一步。在 <code>𝔽<sub>7</sub></code> 里，<code>1/3</code> 不是 0.333，而是 <strong>5</strong>。
+      因为 <code>3 × 5 = 15 ≡ 1 (mod 7)</code>。
+    </p>
+
+    <h3>手算逆元：扩展欧几里得</h3>
+    <p>要求 <code>3<sup>−1</sup> mod 7</code>，就是要找 <code>x</code> 使 <code>3x ≡ 1 (mod 7)</code>。</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      7 = 2 × 3 + 1 &nbsp;&nbsp;<span style="color:#7C8894">← 用 7 除 3，余 1</span><br>
+      3 = 3 × 1 + 0 &nbsp;&nbsp;<span style="color:#7C8894">← 用 3 除 1，余 0，停</span><br>
+      回代：1 = 7 − 2×3 &nbsp;⟹&nbsp; −2×3 ≡ 1 &nbsp;⟹&nbsp; <em>x</em> ≡ −2 ≡ 5 ( mod 7 )
+    </div>
+    <p>验证：<code>3 × 5 = 15 = 2×7 + 1 ≡ 1</code> ✓</p>
+
+    <h3>更快的办法：费马小定理</h3>
+    <div class="fml">
+      <em>a</em><sup><em>p</em>−1</sup> ≡ 1 ( mod <em>p</em> ) &nbsp;&nbsp;⟹&nbsp;&nbsp;
+      <em>a</em><sup>−1</sup> ≡ <em>a</em><sup><em>p</em>−2</sup> ( mod <em>p</em> )
+      <span class="lbl">对任意 a ≠ 0 成立（p 为素数）</span>
+    </div>
+    <p>
+      所以在 <code>𝔽<sub>7</sub></code> 里 <code>3<sup>−1</sup> = 3<sup>5</sup> = 243 = 34×7+5 ≡ 5</code>，和上面一致。
+      实际实现用快速幂，<code>O(log p)</code> 次乘法。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">电路里的坑</span>
+        <p>
+          写 <code>a / b</code> 时，如果 <code>b = 0</code>，逆元不存在，结果是未定义的。
+          所以任何除法都必须<strong>额外约束 <code>b ≠ 0</code></strong>，或者改写成
+          <code>a = c·b</code> 的双向约束。这是真实电路里非常常见的漏洞。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>扩域：为什么配对需要 𝔽<sub>p²</sub> 和 𝔽<sub>p¹²</sub></h2>
+    <p>
+      有些方程在 <code>𝔽<sub>p</sub></code> 里无解，但在「更大的域」里有解。
+      最典型的是 <code>x² + 1 = 0</code>：在实数里无解，引入 <code>i</code> 就有解了。
+    </p>
+    <p>有限域里做同样的事：把 <code>𝔽<sub>p</sub></code> 扩成</p>
+    <div class="fml">
+      𝔽<sub><em>p</em>²</sub> = { <em>a</em> + <em>b</em>·<em>u</em> &nbsp;|&nbsp; <em>a</em>,<em>b</em> ∈ 𝔽<sub><em>p</em></sub> } , &nbsp; 其中 <em>u</em>² = −1
+      <span class="lbl">每个元素是一对 (a, b)，加法逐分量，乘法按 u² = −1 展开</span>
+    </div>
+    <p>
+      元素个数从 <code>p</code> 变成 <code>p²</code>。同理可以继续扩到 <code>𝔽<sub>p⁶</sub></code>、<code>𝔽<sub>p¹²</sub></code>。
+    </p>
+    <h3>为什么 ZKP 需要它</h3>
+    <p>
+      双线性配对的目标群是 <code>𝔾<sub>T</sub></code>，它同构于 <code>𝔽<sub>p¹²</sub>*</code> 的一个子群。
+      没有扩域就定义不出配对，也就没有 KZG 和 Groth16。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">域</th><th>元素个数</th><th>在 ZKP 里的角色</th></tr></thead>
+        <tbody>
+          <tr><td><code>𝔽<sub>p</sub></code></td><td>p</td><td>曲线坐标、电路约束的取值域</td></tr>
+          <tr><td><code>𝔽<sub>p²</sub></code></td><td>p²</td><td>G2 群的坐标（每个点两个分量）</td></tr>
+          <tr><td><code>𝔽<sub>p⁶</sub></code></td><td>p⁶</td><td>配对计算的中间层</td></tr>
+          <tr><td><code>𝔽<sub>p¹²</sub></code></td><td>p¹²</td><td>配对的目标群 GT</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>2-adicity：为什么电路规模总是 2 的幂</h2>
+    <p class="lead">
+      你可能注意到，ZKP 项目的电路大小总是 <code>2<sup>20</sup></code>、<code>2<sup>24</sup></code> 这种数字。
+      这不是习惯，是域的性质决定的。
+    </p>
+    <p>
+      FFT/NTT 需要一个「长度为 n 的单位根」，也就是一个元素 <code>ω</code> 使 <code>ω<sup>n</sup> = 1</code>
+      且 <code>n</code> 是 <code>ω</code> 的阶。而 <code>𝔽<sub>p</sub>*</code> 是循环群，阶为 <code>p−1</code>。
+    </p>
+    <p>把 <code>p−1</code> 分解成 <code>2<sup>s</sup> · t</code>（t 为奇数），这个 <code>s</code> 就叫 <strong>2-adicity</strong>：</p>
+    <div class="fml">
+      <em>p</em> − 1 = 2<sup><em>s</em></sup> · <em>t</em> &nbsp;&nbsp;⟹&nbsp;&nbsp; 最大支持 <em>n</em> = 2<sup><em>s</em></sup> 的 FFT
+      <span class="lbl">s 越大，单次能处理的电路规模越大</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:160px">曲线 / 域</th><th style="width:130px">2-adicity</th><th>意味着</th></tr></thead>
+        <tbody>
+          <tr><td>BN254 标量域</td><td>约 28</td><td>单次 FFT 最多 2<sup>28</sup> ≈ 2.7 亿个点</td></tr>
+          <tr><td>BLS12-381 标量域</td><td>32</td><td>最多 2<sup>32</sup> ≈ 43 亿个点</td></tr>
+          <tr><td>某些为 FFT 优化的域</td><td>可达 40+</td><td>为超大规模电路设计</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      如果电路规模不是 2 的幂，就要补零到最近的 2 的幂 —— 这会浪费最多一半的容量。
+      所以编译器通常会把电路 padding 到整幂。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">这也是「域」和「曲线」要配对选的原因</span>
+        <p>
+          BN254 的基域和标量域 2-adicity 都不错，所以它成为以太坊生态的默认选择。
+          如果你选了一条 2-adicity 只有 10 的曲线，电路规模会被卡死在 1024，基本没法用。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>完整手算一遍</h2>
+    <p>在 <code>𝔽<sub>11</sub></code> 里算 <code>(7 × 8 + 3) / 5</code>。</p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>先算乘法</h4>
+        <p><code>7 × 8 = 56</code>，<code>56 mod 11 = 1</code>（因为 5×11=55，余 1）。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>再加 3</h4>
+        <p><code>1 + 3 = 4</code>。</p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>求 5 的逆元</h4>
+        <p>要找 <code>x</code> 使 <code>5x ≡ 1 (mod 11)</code>。试一下：<code>5×9 = 45 = 44+1 ≡ 1</code>，所以 <code>5<sup>−1</sup> = 9</code>。</p>
+      </div>
+      <div class="st">
+        <div class="d">4</div>
+        <h4>乘逆元</h4>
+        <p><code>4 × 9 = 36</code>，<code>36 mod 11 = 3</code>（33+3）。</p>
+      </div>
+    </div>
+    <p>验算：<code>3 × 5 = 15 ≡ 4 (mod 11)</code>，和第二步的结果一致 ✓</p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">注意这里发生了什么</span>
+        <p>
+          <code>(7×8+3)/5</code> 在普通算术里是 <code>59/5 = 11.8</code>。
+          在 <code>𝔽<sub>11</sub></code> 里答案是 <code>3</code>。
+          <strong>同一个表达式，不同的数系，完全不同的结果。</strong>
+          读论文时看到「除以 5」，必须知道它在哪个域里。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>所有运算都在 <code>mod p</code> 下进行，结果永远落在 <code>[0, p)</code>。</li>
+        <li>没有除法，只有乘逆元：<code>a/b := a·b<sup>−1</sup></code>。</li>
+        <li>逆元用扩展欧几里得求，或用费马小定理 <code>a<sup>p−2</sup></code>。</li>
+        <li>扩域 <code>𝔽<sub>p²</sub></code>、<code>𝔽<sub>p¹²</sub></code> 是配对存在的必要条件。</li>
+        <li>2-adicity 决定单次 FFT 能处理的电路规模，是选曲线的硬指标。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「有限域就是取模运算，和编程里的 % 一样。」</span></div>
+      <div class="r"><i>✓</i><div>取模只是<strong>表示</strong>。域还要求每个非零元有逆元、满足分配律等公理。
+        用合数取模（比如 <code>mod 12</code>）就不是域，因为很多元素没有逆元。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「负数在域里不存在。」</span></div>
+      <div class="r"><i>✓</i><div><code>−3</code> 在 <code>𝔽<sub>11</sub></code> 里就是 <code>8</code>。
+        域里没有「负号」，只有「加法逆元」。写 <code>−a</code> 时，实际计算的是 <code>p−a</code>。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「域元素可以比较大小。」</span></div>
+      <div class="r"><i>✓</i><div>不能。<code>𝔽<sub>p</sub></code> 上<strong>没有全序</strong> —— 「5 比 3 大」在域里没有意义。
+        电路里做 <code>&lt;</code> 比较，必须先把数拆成比特，或者用查找表。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「p 越大越安全，所以随便选个大素数就行。」</span></div>
+      <div class="r"><i>✓</i><div>还要看 <strong>2-adicity</strong>（决定 FFT 规模）、<strong>是否配对友好</strong>（决定能否做 KZG）、
+        以及<strong>生态支持</strong>（以太坊预编译只认 BN254）。选错域，后面全部要重来。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="index.html">
+      <span class="pl">← 返回</span>
+      <span class="pt">图谱首页</span>
+    </a>
+    <a href="01-02-elliptic-curves.html">
+      <span class="pl">下一模块 · 01 · 02</span>
+      <span class="pt">椭圆曲线：把加法定义在曲线上 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

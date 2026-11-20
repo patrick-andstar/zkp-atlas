@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>zkVM 与 zkEVM · 把整个虚拟机做成电路 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">zkVM 与 zkEVM</div>
+  <div class="side-s">03 · zkVM &amp; zkEVM</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这个模块要解决什么问题</a>
+    <a href="#s2"><span>2</span>两条路线</a>
+    <a href="#s3"><span>3</span>zkVM 的架构</a>
+    <a href="#s4"><span>4</span>trace 怎么变成证明</a>
+    <a href="#s5"><span>5</span>zkEVM 的特殊难点</a>
+    <a href="#s6"><span>6</span>性能与选型</a>
+    <a href="#s7"><span>7</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="03-06-circuit-auditing.html">← 上一模块 · 电路审计</a>
+    <a href="index.html">返回图谱首页</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>要解决的问题</a></li>
+      <li><a href="#s2"><span>2</span>两条路线</a></li>
+      <li><a href="#s3"><span>3</span>zkVM 架构</a></li>
+      <li><a href="#s4"><span>4</span>trace 到证明</a></li>
+      <li><a href="#s5"><span>5</span>zkEVM 的难点</a></li>
+      <li><a href="#s6"><span>6</span>性能与选型</a></li>
+      <li><a href="#s7"><span>7</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>03 工程实现</span><span>/</span><b>03 · 07</b></div>
+
+  <header>
+    <h1>zkVM 与 zkEVM：把整个虚拟机做成电路</h1>
+    <p class="tagline">
+      前面所有模块讲的是「怎么证一个函数」。真实系统要证的是<strong>一整个程序的执行</strong> ——
+      几百万条指令、几 GB 内存、还有输入输出。
+      这一页讲这条从「指令」到「证明」的流水线怎么搭。
+    </p>
+    <div class="meta">
+      <span class="hot">工程总装</span>
+      <span>≈ 18 min</span>
+      <span>难度 4 / 5</span>
+      <span>前置：算术化 · 查找论证 · 递归</span>
+      <span>代表：RISC Zero · SP1 · Scroll</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      你不想为每一个程序都手写一套电路。你想要的是一台<strong>通用机器</strong>：
+      把程序喂进去，它输出「执行结果 + 一个证明」。
+    </p>
+    <div class="fml">
+      程序 <em>P</em> + 输入 <em>x</em> &nbsp;⟶&nbsp; 输出 <em>y</em> + 证明 π
+      <span class="lbl">π 证明「存在一次 P(x) 的执行，输出是 y」</span>
+    </div>
+    <p>
+      这台机器的电路是<strong>固定的</strong>（只跟指令集有关，跟具体程序无关）。
+      用户写自己的程序，编译成指令，跑一遍，生成 trace，交给证明系统。
+    </p>
+    <p>
+      这就是 zkVM 的核心抽象。它把「为每个应用写电路」变成了「写程序」——
+      工程门槛降了一个数量级。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么这件事以前做不到</span>
+        <p>
+          因为指令执行是<strong>状态相关</strong>的：下一条执行哪条指令，取决于当前寄存器的值。
+          电路是固定形状的，没法「跳转」。
+          解决办法是：<strong>不跳转，按顺序执行所有指令，用选择子屏蔽掉不该生效的那些</strong>。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>两条路线：复刻 EVM，还是重造一台机器</h2>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th style="width:100px">路线</th><th style="width:150px">做法</th><th>优势</th><th style="width:170px">代价</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>zkEVM</strong></td>
+            <td>复刻以太坊虚拟机的语义：256 位栈、gas 计量、存储、预编译</td>
+            <td>与现有合约完全兼容，开发者零迁移</td>
+            <td>工程量巨大；gas 语义和存储结构在电路里极难表达</td>
+          </tr>
+          <tr>
+            <td><strong>zkVM</strong></td>
+            <td>用现成指令集（多为 RISC-V），配标准工具链</td>
+            <td>通用、可用 C/Rust 写程序、工具链成熟</td>
+            <td>每条指令的约束开销固定，简单程序反而更贵</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      一句话：<strong>zkEVM 是「为兼容性付账」，zkVM 是「为通用性付账」</strong>。
+      前者让 Solidity 直接跑，后者让任何语言都能写。
+    </p>
+    <div class="fml" style="text-align:left;font-size:12.5px;line-height:2.2">
+      <span style="color:#12384F">zkEVM</span>：Solidity → EVM 字节码 → 电路（每个 opcode 一种约束）<br>
+      <span style="color:#A6432B">zkVM</span>：Rust/C → RISC-V 指令 → 电路（每条指令一种约束）
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>zkVM 的架构：四个组件</h2>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>指令集与执行器</h4>
+        <p>
+          定义一个最小的 RISC-V 子集（通常 RV32IM：整数 + 乘法）。
+          执行器在本地跑一遍程序，记录每一步的<strong>完整状态</strong>。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>Trace：状态表</h4>
+        <p>
+          每行是一个时钟周期，列包括：PC、32 个寄存器、指令编码、内存读写地址与值。
+          一百万条指令就是一百万行。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>约束系统</h4>
+        <p>
+          两类约束：<strong>行内</strong>（这条指令的语义，比如 ADD 的输入输出关系）和
+          <strong>跨行</strong>（PC 怎么变、寄存器在下一行是否保持、内存读写是否一致）。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">4</div>
+        <h4>内存一致性</h4>
+        <p>
+          这是最麻烦的部分。内存不是「一个格子」，而是<strong>一堆按时间排序的读写事件</strong>。
+          必须证明：每次读到的值，等于之前最后一次写入的值。
+        </p>
+      </div>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">内存检查为什么难</span>
+        <p>
+          朴素做法是「每个读操作，回头看所有历史写操作」——
+          复杂度 <code>O(n²)</code>，不可行。
+          实际做法：把所有读写事件按<strong>地址</strong>排序，再按<strong>时间</strong>检查相邻事件。
+          排序本身要用置换论证或查找表来证明。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>从 trace 到证明：五步</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:60px">步骤</th><th style="width:170px">做什么</th><th>用到的模块</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>把 trace 的每一列插值成多项式</td><td><a href="01-04-polynomials-fft.html">多项式与 FFT</a></td></tr>
+          <tr><td>2</td><td>把指令语义写成选择子 + 约束</td><td><a href="02-01-arithmetization.html">算术化</a>（PLONKish）</td></tr>
+          <tr><td>3</td><td>用查找表检查 opcode 合法性与位宽</td><td><a href="02-03-lookup-arguments.html">查找论证</a></td></tr>
+          <tr><td>4</td><td>用置换论证保证内存/寄存器一致</td><td><a href="02-04-permutation-arguments.html">置换论证</a></td></tr>
+          <tr><td>5</td><td>生成证明并递归压缩</td><td><a href="02-09-recursion.html">递归</a> + <a href="03-04-aggregation.html">聚合</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      注意这张表：<strong>zkVM 不是新发明，它是前面所有模块的总装</strong>。
+      每一个零件你都见过，难的是让它们在一百万行的规模上协同工作。
+    </p>
+    <h3>一个具体的约束长什么样</h3>
+    <p>以 RISC-V 的 <code>ADD rd, rs1, rs2</code> 为例：</p>
+    <div class="fml" style="font-size:12.5px;text-align:left;line-height:2.2">
+      <em>isAdd</em> · ( <em>rd</em>' − <em>rs1</em> − <em>rs2</em> ) = 0<br>
+      <em>isAdd</em> · ( <em>pc</em>' − <em>pc</em> − 4 ) = 0<br>
+      ( 1 − <em>isAdd</em> ) · ( 其他指令的约束 ) = 0
+      <span class="lbl">isAdd 是选择子；只有当前行是 ADD 时，前两式才生效</span>
+    </div>
+    <p>
+      所有指令的约束都写成这种「选择子 × 表达式」的形式，加在一起就是完整的状态转移约束。
+      <strong>这就是 PLONKish 自定义门的典型用法。</strong>
+    </p>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>zkEVM 的特殊难点：EVM 不是为电路设计的</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">EVM 特性</th><th>为什么在电路里难</th><th style="width:180px">常见解法</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>256 位字</td>
+            <td>域元素也是 256 位左右，加法会溢出，需要额外的范围检查</td>
+            <td>拆成多个 32 位段，分段约束</td>
+          </tr>
+          <tr>
+            <td>gas 计量</td>
+            <td>每个 opcode 的动态 gas 依赖状态（存储冷热、内存扩展），是数据相关的</td>
+            <td>把 gas 计算也做成查表 + 约束</td>
+          </tr>
+          <tr>
+            <td>Merkle Patricia Trie</td>
+            <td>状态存储是稀疏默克尔树，路径长度可变</td>
+            <td>改用固定深度的稀疏树，或承诺整个状态</td>
+          </tr>
+          <tr>
+            <td>预编译合约</td>
+            <td>椭圆曲线运算、哈希，在电路里极贵</td>
+            <td>为每个预编译写专用子电路</td>
+          </tr>
+          <tr>
+            <td>动态跳转</td>
+            <td>JUMP/JUMPI 的目标地址运行时才知道</td>
+            <td>把整个代码段做成查找表，用 PC 查指令</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      这张表解释了为什么 zkEVM 的工程量是 zkVM 的几倍 ——
+      <strong>EVM 的每一个设计选择，几乎都和电路的固定形状相冲突</strong>。
+    </p>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>性能与选型</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">系统</th><th style="width:110px">类型</th><th style="width:150px">底层</th><th>定位</th></tr></thead>
+        <tbody>
+          <tr><td><strong>RISC Zero</strong></td><td>zkVM</td><td>RISC-V + STARK</td><td>通用计算，生态成熟</td></tr>
+          <tr><td><strong>SP1</strong></td><td>zkVM</td><td>RISC-V + Plonky3</td><td>性能优先，主打「比手写电路快」</td></tr>
+          <tr><td><strong>Jolt</strong></td><td>zkVM</td><td>RISC-V + Lasso</td><td>用查找表替代约束，理论优雅</td></tr>
+          <tr><td><strong>Scroll</strong></td><td>zkEVM</td><td>Halo2</td><td>字节码级兼容</td></tr>
+          <tr><td><strong>Polygon zkEVM</strong></td><td>zkEVM</td><td>PLONK</td><td>兼容性好，证明较大</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>一个必须知道的数字</h3>
+    <p>
+      zkVM 的证明开销通常是<strong>原始执行的 10⁴–10⁶ 倍</strong>。
+      一段跑 1 秒的 Rust 程序，生成证明可能要几十分钟。
+    </p>
+    <div class="fml">
+      执行 1 秒 &nbsp;⟶&nbsp; 证明 10–60 分钟
+      <span class="lbl">这就是为什么 zkVM 目前主要用于「验证」而不是「加速」</span>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">选型的真实判断</span>
+        <p>
+          如果你的程序<strong>只跑一次、结果要给别人信</strong> → zkVM 合适。<br>
+          如果你要<strong>每秒处理几千笔交易</strong> → 必须用专用电路（zkEVM 或定制），
+          因为通用 zkVM 的每指令开销承受不了这个吞吐。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>zkVM 把「为每个应用写电路」变成「写程序」，电路只跟指令集有关。</li>
+        <li>核心是 trace：每行一个时钟周期，记录 PC、寄存器、内存读写。</li>
+        <li>内存一致性靠「按地址排序 + 相邻检查」，不是逐个回看历史。</li>
+        <li>zkEVM 的难点在于 EVM 的每个设计都和固定电路冲突。</li>
+        <li>zkVM 不是新发明，它是算术化 + 查找 + 置换 + 递归的总装。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「zkVM 可以加速程序执行。」</span></div>
+      <div class="r"><i>✓</i><div>完全相反。证明开销是原始执行的 <code>10⁴–10⁶</code> 倍。
+        zkVM 的价值是<strong>让别人相信结果</strong>，不是让程序跑得更快。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「zkEVM 比 zkVM 更高级。」</span></div>
+      <div class="r"><i>✓</i><div>两者是<strong>不同的取舍</strong>：zkEVM 换兼容性，zkVM 换通用性。
+        做一个新应用，zkVM 往往更快落地；要让现有 Solidity 合约无痛迁移，只能 zkEVM。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「trace 里存了所有状态，所以证明者能还原我的输入。」</span></div>
+      <div class="r"><i>✓</i><div>trace 是<strong>证明者本地</strong>的数据，不会上传。上链的只有证明和公开输入。
+        但要注意：如果 trace 被日志记录或上传到云端，隐私就泄露了。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「指令集越小，证明越快。」</span></div>
+      <div class="r"><i>✓</i><div>指令集小意味着<strong>每条指令的约束更通用</strong>，但完成同样功能需要更多指令。
+        总开销 = 指令数 × 每条约束数，两者要平衡。RISC-V 的 RV32IM 是当前的经验最优点。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="03-06-circuit-auditing.html">
+      <span class="pl">← 上一模块 · 03 · 06</span>
+      <span class="pt">电路审计：唯一不能省的成本</span>
+    </a>
+    <a href="index.html">
+      <span class="pl">完成 · 27 / 27</span>
+      <span class="pt">返回图谱首页</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>椭圆曲线 · 把加法定义在曲线上 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">椭圆曲线</div>
+  <div class="side-s">01 · Elliptic Curves</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这个模块要解决什么问题</a>
+    <a href="#s2"><span>2</span>直觉：弦与切线</a>
+    <a href="#s3"><span>3</span>曲线方程与点</a>
+    <a href="#s4"><span>4</span>点加法的公式</a>
+    <a href="#s5"><span>5</span>标量乘法与离散对数</a>
+    <a href="#s6"><span>6</span>曲线参数怎么选</a>
+    <a href="#s7"><span>7</span>手算示例</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="00-02-groups.html">← 00 · 02 群（本页前置）</a>
+    <a href="01-01-finite-fields.html">上一模块 · 有限域</a>
+    <a href="01-03-pairings.html">下一模块 · 双线性配对 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>这个模块要解决什么问题</a></li>
+      <li><a href="#s2"><span>2</span>直觉</a></li>
+      <li><a href="#s3"><span>3</span>方程与点</a></li>
+      <li><a href="#s4"><span>4</span>点加法</a></li>
+      <li><a href="#s5"><span>5</span>离散对数</a></li>
+      <li><a href="#s6"><span>6</span>参数怎么选</a></li>
+      <li><a href="#s7"><span>7</span>手算示例</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>01 数学基础</span><span>/</span><b>01 · 02</b></div>
+
+  <header>
+    <h1>椭圆曲线：把「加法」定义在曲线点上</h1>
+    <p class="tagline">
+      有限域给了我们一个能做加减乘除的圈。椭圆曲线在这个圈上再叠一层结构：
+      <strong>曲线上的点可以「相加」</strong>。这个加法是单向函数的来源 —— 正着算容易，倒着算几乎不可能。
+    </p>
+    <div class="meta">
+      <span class="hot">核心基础</span>
+      <span>≈ 14 min</span>
+      <span>难度 3 / 5</span>
+      <span>前置：00 · 02 群 · 有限域</span>
+      <span>被用于：承诺 · 配对 · 签名</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      有限域本身是一个「可逆」的结构：知道 <code>a·b = c</code>，很容易反推出 <code>a</code>。
+      密码学需要的是<strong>单向函数</strong> —— 正着算便宜，倒着算不可能。
+    </p>
+    <p>
+      椭圆曲线提供了这种单向性。它的核心运算叫「标量乘法」：
+    </p>
+    <div class="fml">
+      <em>P</em> &nbsp;→&nbsp; <em>k</em>·<em>P</em> = <em>P</em> + <em>P</em> + ⋯ + <em>P</em> &nbsp;( <em>k</em> 次 )
+      <span class="lbl">给定 P 和 k，算出 kP 很快（O(log k) 次点加）；给定 P 和 kP，求 k 极难</span>
+    </div>
+    <p>
+      这个「极难」就是<strong>离散对数问题</strong>（ECDLP）。
+      所有基于椭圆曲线的密码学 —— 签名、承诺、KZG、Groth16 —— 安全性都建立在它之上。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么不用 RSA 那套（大整数分解）</span>
+        <p>
+          同样的安全强度下，椭圆曲线的密钥短得多：256 位椭圆曲线 ≈ 3072 位 RSA。
+          密钥短意味着群元素小、证明小、链上存储便宜 —— 这对 ZKP 是决定性的。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：两点连线，交曲线于第三点</h2>
+    <p>
+      椭圆曲线有一个几何性质：<strong>任意一条直线与曲线最多交于三个点</strong>
+      （三次方程最多三个根）。利用这个性质，可以定义一种「加法」：
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>过 P 和 Q 画一条直线</h4>
+        <p>这条直线会与曲线交于第三个点，记为 <code>R'</code>。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>把 R' 沿 x 轴翻折</h4>
+        <p>得到 <code>R</code>，定义 <code>P + Q = R</code>。</p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>如果 P = Q，用切线</h4>
+        <p>两点重合时，直线退化成切线，同样交于第三点，再翻折 —— 这就是「倍点」。</p>
+      </div>
+    </div>
+    <p>
+      这个定义的妙处：<strong>它满足交换律和结合律</strong>，而且存在单位元（无穷远点）和逆元（关于 x 轴翻折）。
+      于是曲线上的点构成一个<strong>阿贝尔群</strong>。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">为什么「翻折」这一步不能省</span>
+        <p>
+          如果不翻折，直接取第三点，加法就不满足结合律 —— <code>(P+Q)+R ≠ P+(Q+R)</code>。
+          翻折保证了群公理成立。这个细节在纯代数公式里体现为 <code>y₃</code> 前面那个负号。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>曲线方程与点</h2>
+    <p>ZKP 里用的几乎都是「短 Weierstrass 形式」：</p>
+    <div class="fml">
+      <em>y</em>² = <em>x</em>³ + <em>a</em>·<em>x</em> + <em>b</em> &nbsp;&nbsp;( mod <em>p</em> )
+      <span class="lbl">a、b 是曲线参数；要求 4a³ + 27b² ≠ 0（否则曲线有奇点，不成群）</span>
+    </div>
+    <p>
+      曲线上的「点」就是满足这个方程的一对 <code>(x, y)</code>，再加上一个特殊的<strong>无穷远点 O</strong>
+      （作为加法单位元，相当于零）。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">符号</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td><code>𝔾</code></td><td>曲线上的所有点构成的群，元素个数叫「曲线阶」，记作 <code>#𝔾</code>。</td></tr>
+          <tr><td><code>O</code></td><td>无穷远点，单位元。<code>P + O = P</code>。</td></tr>
+          <tr><td><code>−P</code></td><td><code>P=(x,y)</code> 的逆元，即 <code>(x, −y)</code>。所以 <code>P + (−P) = O</code>。</td></tr>
+          <tr><td><code>n</code></td><td>子群的阶（通常是一个大素数），决定安全强度。</td></tr>
+          <tr><td><code>G</code></td><td>生成元，子群里所有点都能写成 <code>k·G</code>。</td></tr>
+          <tr><td><code>r</code></td><td>标量域的阶，也就是「k 的取值范围」，通常与 n 同量级。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Hasse 定理：曲线阶大概是多少</h3>
+    <div class="fml">
+      | #𝔾 − ( <em>p</em> + 1 ) | ≤ 2√<em>p</em>
+      <span class="lbl">曲线阶总是接近 p+1，误差不超过 2√p —— 这保证了群足够大</span>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>点加法的公式（工程里真正在跑的东西）</h2>
+    <p class="lead">
+      几何直觉很好，但代码里用的是代数公式。所有运算都在 <code>𝔽<sub>p</sub></code> 里，除法 = 乘逆元。
+    </p>
+
+    <h3>两个不同的点相加：P + Q</h3>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.2">
+      斜率：<em>λ</em> = ( <em>y</em><sub>2</sub> − <em>y</em><sub>1</sub> ) / ( <em>x</em><sub>2</sub> − <em>x</em><sub>1</sub> )<br>
+      横坐标：<em>x</em><sub>3</sub> = <em>λ</em>² − <em>x</em><sub>1</sub> − <em>x</em><sub>2</sub><br>
+      纵坐标：<em>y</em><sub>3</sub> = <em>λ</em>( <em>x</em><sub>1</sub> − <em>x</em><sub>3</sub> ) − <em>y</em><sub>1</sub>
+      <span class="lbl">结果点 (x₃, y₃) 必然仍在曲线上</span>
+    </div>
+
+    <h3>同一个点相加（倍点）：2P</h3>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.2">
+      斜率：<em>λ</em> = ( 3<em>x</em><sub>1</sub>² + <em>a</em> ) / ( 2<em>y</em><sub>1</sub> )<br>
+      之后的公式与上面完全相同
+      <span class="lbl">这是对曲线方程两边求导得到的切线斜率</span>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">两种退化情况必须单独处理</span>
+        <p>
+          <strong>① <code>P = −Q</code></strong>（x 相同、y 相反）：结果是无穷远点 O，公式里的分母为 0。<br>
+          <strong>② <code>y = 0</code> 的点做倍点</strong>：分母 <code>2y = 0</code>，同样失效，结果是 O。
+        </p>
+        <p>
+          实现里如果不处理这两种情况，会出现除以零。这也是侧信道攻击的常见入口点。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>标量乘法与离散对数</h2>
+    <p>
+      标量乘法就是反复做点加。<code>k·P</code> 用「倍加算法」（double-and-add）只要 <code>O(log k)</code> 次点运算：
+    </p>
+    <div class="fml" style="text-align:left;font-size:12.5px;line-height:2">
+      把 <em>k</em> 写成二进制 <em>k</em> = ( <em>b</em><sub>m</sub>…<em>b</em><sub>1</sub><em>b</em><sub>0</sub> )<sub>2</sub><br>
+      从高位往低位：每步先倍点，若当前位为 1 再加 <em>P</em>
+      <span class="lbl">例：k=13=1101₂ → 2P, 3P, 6P, 7P, 13P（4 次倍点 + 3 次加法）</span>
+    </div>
+
+    <h3>单向性来自哪里</h3>
+    <div class="fml">
+      已知 <em>P</em> 和 <em>k</em> &nbsp;⟹&nbsp; 算 <em>k</em>·<em>P</em> &nbsp;：<em>O</em>(log <em>k</em>) 次运算，毫秒级<br>
+      已知 <em>P</em> 和 <em>Q</em> = <em>k</em>·<em>P</em> &nbsp;⟹&nbsp; 求 <em>k</em> &nbsp;：最好的算法是 <em>O</em>(√<em>n</em>) 次
+      <span class="lbl">n 是子群阶。n ≈ 2²⁵⁴ 时，√n ≈ 2¹²⁷，宇宙年龄也算不完</span>
+    </div>
+    <p>
+      这个不对称就是一切的基础。注意「最好算法是 <code>O(√n)</code>」——
+      这就是为什么 256 位曲线只提供 128 位安全强度，因为攻击复杂度是开平方的。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">「128 位安全」是什么意思</span>
+        <p>
+          指攻击者需要约 <code>2¹²⁸</code> 次运算才能破解。作为对比，全球算力总和大约在 <code>2⁸⁰</code> 量级。
+          所以 128 位是当前工程上的标准强度，256 位曲线刚好够。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>曲线参数怎么选：BN254 vs BLS12-381</h2>
+    <p>ZKP 里 99% 的场景只用这两条曲线。它们的差别很具体：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">维度</th><th>BN254（alt_bn128）</th><th>BLS12-381</th></tr></thead>
+        <tbody>
+          <tr><td>基域大小</td><td>254 位</td><td>381 位</td></tr>
+          <tr><td>安全强度</td><td>约 100–110 位（偏弱）</td><td>约 128 位（标准）</td></tr>
+          <tr><td>嵌入度</td><td>12</td><td>12</td></tr>
+          <tr><td>2-adicity</td><td>约 28</td><td>32</td></tr>
+          <tr><td>以太坊支持</td><td><strong>原生预编译（EIP-196/197）</strong></td><td>无原生支持，需合约实现</td></tr>
+          <tr><td>典型使用者</td><td>Groth16、PLONK 上链验证</td><td>Zcash、Filecoin、BLS 签名</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <strong>选型逻辑很现实</strong>：要上以太坊主网验证，几乎只能用 BN254，因为它的配对运算有预编译合约，
+      gas 便宜一个数量级。BLS12-381 更安全，但在 EVM 里实现配对要几十万 gas。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">BN254 的 100 位安全强度是个真实隐患</span>
+        <p>
+          它的基域只有 254 位，理论上 NFS 类算法能把它降到约 100 位强度。
+          对短期有效的证明（Rollup 批次）问题不大，但对长期存档的证明，应该考虑迁移到 BLS12-381 或透明方案。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>手算一条小曲线</h2>
+    <p>取 <code>p = 7</code>，曲线 <code>y² = x³ + 2x + 3 (mod 7)</code>。先枚举所有点：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:60px">x</th><th style="width:130px">x³+2x+3 mod 7</th><th>是平方剩余吗</th><th>对应的 y</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td>3</td><td>否</td><td>—</td></tr>
+          <tr><td>1</td><td>6</td><td>否</td><td>—</td></tr>
+          <tr><td>2</td><td>1</td><td>是（1²=1）</td><td>1, 6</td></tr>
+          <tr><td>3</td><td>1</td><td>是</td><td>1, 6</td></tr>
+          <tr><td>4</td><td>5</td><td>否</td><td>—</td></tr>
+          <tr><td>5</td><td>5</td><td>否</td><td>—</td></tr>
+          <tr><td>6</td><td>0</td><td>是（0²=0）</td><td>0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">平方剩余指「某个数的平方模 p 之后能得到它」。模 7 的平方剩余是 {1, 2, 4}。</p>
+    <p>所以曲线上一共 5 个点：<code>(2,1), (2,6), (3,1), (3,6), (6,0)</code>，加上无穷远点 O，群阶为 6。</p>
+
+    <h3>算一次 P + Q</h3>
+    <p>取 <code>P = (2,1)</code>、<code>Q = (3,1)</code>：</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.2">
+      <em>λ</em> = ( 1 − 1 ) / ( 3 − 2 ) = 0<br>
+      <em>x</em><sub>3</sub> = 0² − 2 − 3 = −5 ≡ 2 ( mod 7 )<br>
+      <em>y</em><sub>3</sub> = 0·( 2 − 2 ) − 1 = −1 ≡ 6 ( mod 7 )
+    </div>
+    <p>所以 <code>P + Q = (2, 6)</code>。验证 <code>(2,6)</code> 在曲线上：<code>36 = 8+4+3 = 15 ≡ 1 (mod 7)</code> ✓</p>
+
+    <h3>算一次倍点 2P</h3>
+    <p>取 <code>P = (2,1)</code>，<code>a = 2</code>：</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.2">
+      <em>λ</em> = ( 3·2² + 2 ) / ( 2·1 ) = 14 / 2 = 7 ≡ 0 ( mod 7 )<br>
+      <em>x</em><sub>3</sub> = 0 − 4 = −4 ≡ 3<br>
+      <em>y</em><sub>3</sub> = 0 − 1 = −1 ≡ 6
+    </div>
+    <p>所以 <code>2P = (3, 6)</code>。在这个玩具例子里，「给定 P 和 2P 求 2」一眼就能看出来；
+      但在 254 位的曲线上，这就是不可能完成的任务。</p>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>椭圆曲线上的点构成阿贝尔群，加法由「弦与切线」定义。</li>
+        <li>标量乘法 <code>kP</code> 是单向函数：正算 <code>O(log k)</code>，反算 <code>O(√n)</code>。</li>
+        <li>256 位曲线 ≈ 128 位安全强度，因为攻击复杂度是开平方的。</li>
+        <li>BN254 胜在以太坊原生支持，BLS12-381 胜在安全强度。</li>
+        <li>点加法有两种退化情况（<code>P=−Q</code>、<code>y=0</code>），实现必须单独处理。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「椭圆曲线加密和椭圆曲线方程是同一件事。」</span></div>
+      <div class="r"><i>✓</i><div>方程只是定义了点集。<strong>密码学用的是「点群上的离散对数问题」</strong>，
+        而不是方程本身。同一个方程换一个基域，安全性完全不同。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「曲线上的点越多越安全。」</span></div>
+      <div class="r"><i>✓</i><div>安全性取决于<strong>子群的阶是否为一个大素数</strong>，以及曲线是否抗各类攻击（如 MOV 攻击）。
+        一条阶为合数的曲线，可能被 Pohlig–Hellman 算法快速分解。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「标量乘法可以并行加速，所以不安全。」</span></div>
+      <div class="r"><i>✓</i><div>并行只能加速<strong>常数倍</strong>。离散对数的 <code>O(√n)</code> 是本质复杂度，
+        不存在已知的多项式算法（除非量子计算机用 Shor 算法）。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「ZKP 里的曲线和比特币的 secp256k1 一样。」</span></div>
+      <div class="r"><i>✓</i><div>完全不同。ZKP 需要<strong>配对友好</strong>的曲线（嵌入度 12），
+        secp256k1 的嵌入度是 1，做不了配对，也就做不了 KZG 和 Groth16。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="01-01-finite-fields.html">
+      <span class="pl">← 上一模块 · 01 · 01</span>
+      <span class="pt">有限域：所有运算发生的那个圈</span>
+    </a>
+    <a href="01-03-pairings.html">
+      <span class="pl">下一模块 · 01 · 03</span>
+      <span class="pt">双线性配对：让指数上的乘法变成加法 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

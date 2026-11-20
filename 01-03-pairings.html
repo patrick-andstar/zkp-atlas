@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双线性配对 · Bilinear Pairings | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">双线性配对</div>
+  <div class="side-s">01 · Bilinear Pairings</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这个模块要解决什么问题</a>
+    <a href="#s2"><span>2</span>直觉：乘法变加法</a>
+    <a href="#s3"><span>3</span>三个群与双线性</a>
+    <a href="#s4"><span>4</span>KZG 验证等式</a>
+    <a href="#s5"><span>5</span>配对怎么算出来</a>
+    <a href="#s6"><span>6</span>嵌入度</a>
+    <a href="#s7"><span>7</span>成本与替代</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="01-02-elliptic-curves.html">← 上一模块 · 椭圆曲线</a>
+    <a href="01-04-polynomials-fft.html">下一模块 · 多项式与 FFT →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>这个模块要解决什么问题</a></li>
+      <li><a href="#s2"><span>2</span>直觉</a></li>
+      <li><a href="#s3"><span>3</span>三个群</a></li>
+      <li><a href="#s4"><span>4</span>KZG 验证</a></li>
+      <li><a href="#s5"><span>5</span>怎么算出来</a></li>
+      <li><a href="#s6"><span>6</span>嵌入度</a></li>
+      <li><a href="#s7"><span>7</span>成本与替代</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>01 数学基础</span><span>/</span><b>01 · 03</b></div>
+
+  <header>
+    <h1>双线性配对：让「指数上的乘法」变成群里的加法</h1>
+    <p class="tagline">
+      椭圆曲线上只能做加法，做不了乘法。这让「验证 <code>a·b = c</code>」变得困难。
+      配对是一个神奇的函数，能在<strong>不暴露 a、b 的前提下，检查它们乘积的关系</strong>。
+      KZG 和 Groth16 的验证等式全靠它。
+    </p>
+    <div class="meta">
+      <span class="hot">核心基础</span>
+      <span>≈ 16 min</span>
+      <span>难度 5 / 5</span>
+      <span>前置：椭圆曲线 · 扩域</span>
+      <span>被用于：KZG · Groth16</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      椭圆曲线群只有一种运算：加法。<code>P + P = 2P</code> 很容易，但<strong>没有办法在群里算 <code>P × Q</code></strong>。
+    </p>
+    <p>
+      这在 ZKP 里是个硬伤。因为我们的约束是「乘法」：
+      <code>(a·w)(b·w) = (c·w)</code>。如果只能做加法，怎么检查乘法关系？
+    </p>
+    <p>
+      如果直接把 <code>a</code>、<code>b</code> 的明文给验证者，他会算乘法 —— 但那样就泄露了见证。
+      我们需要一种机制：
+      <strong>让验证者能检查「a 乘 b 等于 c」，但看不到 a、b、c 本身</strong>。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">配对的本质</span>
+        <p>
+          它把「两个群元素」映射到「第三个群的一个元素」，并且满足
+          <code>e(aP, bQ) = e(P,Q)<sup>ab</sup></code>。
+          注意右边的指数：<code>a</code> 和 <code>b</code> 相乘了。
+          <strong>群里的加法，变成了指数上的乘法。</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：把「相乘」偷偷塞进指数</h2>
+    <p>
+      你想验证 <code>a × b = c</code>，但手里只有 <code>aP</code>、<code>bQ</code>、<code>cR</code>，
+      不知道 <code>a, b, c</code>。怎么办？
+    </p>
+    <p>
+      配对给你一个等式：如果 <code>c = a·b</code>，那么
+    </p>
+    <div class="fml">
+      <em>e</em>( <em>a</em>·<em>P</em> , <em>b</em>·<em>Q</em> ) <span class="op">=</span> <em>e</em>( <em>P</em> , <em>Q</em> )<sup><em>a</em>·<em>b</em></sup>
+      <span class="lbl">左边只用 aP 和 bQ；右边如果知道 e(P,Q)^c，就能比对</span>
+    </div>
+    <p>
+      于是验证者可以检查 <code>e(aP, bQ) = e(cP, Q)</code> —— 两边都只用群元素算，全程不知道 a、b、c 的值。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">这一步为什么是「魔法」</span>
+        <p>
+          在普通群里，<code>aP</code> 和 <code>bQ</code> 是两个孤立的点，它们之间没有任何可计算的二元关系。
+          配对凭空造出了一个：<strong>把两点映射到一个新值，而这个新值编码了它们的「标量乘积」</strong>。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>三个群，三条性质</h2>
+    <div class="fml">
+      <em>e</em> : 𝔾<sub>1</sub> × 𝔾<sub>2</sub> &nbsp;<span class="op">→</span>&nbsp; 𝔾<sub><em>T</em></sub>
+      <span class="lbl">G1 和 G2 是曲线上的两个子群，GT 是扩域里的乘法群</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:100px">群</th><th style="width:130px">是什么</th><th>元素大小（BN254）</th></tr></thead>
+        <tbody>
+          <tr><td><code>𝔾<sub>1</sub></code></td><td>基域上的点，坐标是一个 <code>𝔽<sub>p</sub></code> 元素</td><td>32 字节（压缩）</td></tr>
+          <tr><td><code>𝔾<sub>2</sub></code></td><td>扩域上的点，坐标是 <code>𝔽<sub>p²</sub></code> 元素</td><td>64 字节（压缩）</td></tr>
+          <tr><td><code>𝔾<sub>T</sub></code></td><td><code>𝔽<sub>p¹²</sub>*</code> 的一个子群</td><td>不传输，只用于比较</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>三条必须满足的性质</h3>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.2">
+      <strong>双线性</strong>：<em>e</em>( <em>a</em><em>P</em> + <em>b</em><em>R</em> , <em>Q</em> ) = <em>e</em>(<em>P</em>,<em>Q</em>)<sup><em>a</em></sup> · <em>e</em>(<em>R</em>,<em>Q</em>)<sup><em>b</em></sup><br>
+      <strong>非退化</strong>：存在 <em>P</em>,<em>Q</em> 使 <em>e</em>(<em>P</em>,<em>Q</em>) ≠ 1<br>
+      <strong>可计算</strong>：给定 <em>P</em>,<em>Q</em>，能在多项式时间内算出 <em>e</em>(<em>P</em>,<em>Q</em>)
+      <span class="lbl">第三条是工程要求 —— 理论上存在无数个配对，但算不出来的没用</span>
+    </div>
+    <p>
+      双线性这一条可以展开成最常用的形式：
+    </p>
+    <div class="fml">
+      <em>e</em>( <em>a</em>·<em>P</em> , <em>b</em>·<em>Q</em> ) = <em>e</em>( <em>P</em> , <em>Q</em> )<sup><em>a</em>·<em>b</em></sup>
+      <span class="lbl">两个标量可以「提到外面相乘」—— 这就是所有验证等式的力量来源</span>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">注意方向：G1 和 G2 不能互换</span>
+        <p>
+          配对是 <code>G1 × G2 → GT</code>，不是 <code>G1 × G1</code>。
+          这也是为什么 Groth16 的证明里，<code>B</code> 必须在 G2 上（64 字节），
+          而 <code>A</code>、<code>C</code> 在 G1 上（各 32 字节）—— 三个点的总大小是 128 字节，不是 96。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>KZG 验证等式：配对最漂亮的一次应用</h2>
+    <p class="lead">
+      这是你在 ZKP 里最常遇到的配对等式。看懂它，就理解了为什么多项式承诺能工作。
+    </p>
+    <div class="fml">
+      <em>e</em>( <em>C</em> − [<em>v</em>]<sub>1</sub> , [1]<sub>2</sub> ) <span class="op">=</span> <em>e</em>( π , [τ]<sub>2</sub> − [<em>z</em>]<sub>2</sub> )
+      <span class="lbl">C 是多项式承诺，π 是打开证明，v 是声称的取值，z 是求值点</span>
+    </div>
+
+    <h3>逐项拆开</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">表达式</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td><code>C = [p(τ)]<sub>1</sub></code></td><td>对多项式 p 的承诺，一个 G1 点</td></tr>
+          <tr><td><code>[v]<sub>1</sub></code></td><td>标量 v 映射到 G1，即 <code>v·G<sub>1</sub></code></td></tr>
+          <tr><td><code>C − [v]<sub>1</sub></code></td><td>群减法，得到 <code>[(p(τ)−v)]<sub>1</sub></code></td></tr>
+          <tr><td><code>π = [q(τ)]<sub>1</sub></code></td><td>打开证明，其中 <code>q(x) = (p(x)−v)/(x−z)</code></td></tr>
+          <tr><td><code>[τ]<sub>2</sub> − [z]<sub>2</sub></code></td><td>G2 上的 <code>[(τ−z)]<sub>2</sub></code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>为什么它等价于除法关系</h3>
+    <p>设 <code>e(G<sub>1</sub>, G<sub>2</sub>) = g<sub>T</sub></code>。把两边都写成 <code>g<sub>T</sub></code> 的幂：</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.2">
+      左边 = <em>g</em><sub><em>T</em></sub><sup>p(τ) − v</sup><br>
+      右边 = <em>g</em><sub><em>T</em></sub><sup>q(τ)·(τ − z)</sup>
+    </div>
+    <p>
+      两边相等 ⟺ 指数相等 ⟺ <code>p(τ) − v = q(τ)·(τ − z)</code>。
+      而这正是「<code>p(x) − v</code> 能被 <code>x − z</code> 整除」的求值版本 ——
+      也就是「<code>p(z) = v</code>」。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">整个验证只做了两次配对</span>
+        <p>
+          没有多项式求值、没有系数传输、没有与次数相关的运算。
+          不管多项式是一万次还是一亿次，验证成本完全一样。
+          <strong>这就是配对带来的「常数时间验证」。</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>配对是怎么算出来的：Miller 循环</h2>
+    <p>
+      配对不是「查表」也不是「公式」。它的计算依赖一个事实：
+      <strong>曲线上的有理函数，其除子（零点和极点）可以用点加法来追踪</strong>。
+    </p>
+    <p>Miller 算法的思路：把 <code>e(P, Q)</code> 拆成一串「线函数在 Q 点的取值」，逐步累乘。</p>
+    <div class="fml" style="font-size:12.5px;text-align:left;line-height:2">
+      把标量 <em>k</em> 写成二进制，逐位处理：<br>
+      &nbsp;&nbsp;每步做一次倍点，累乘对应的切线函数值<br>
+      &nbsp;&nbsp;若当前位为 1，再做一次加法，累乘对应的割线函数值<br>
+      最后做一次「最终幂」：把结果升到 ( <em>p</em><sup>12</sup> − 1 ) / <em>n</em> 次方
+      <span class="lbl">最终幂是为了把结果投影到 GT 的正确子群里，消除冗余分量</span>
+    </div>
+    <p>
+      复杂度是 <code>O(log n)</code> 次域运算（<code>𝔽<sub>p¹²</sub></code> 上的乘法和求逆）。
+      在 BN254 上，一次配对大约需要 <strong>几万次</strong> 基域乘法。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px">操作</th><th>大致耗时（现代 CPU）</th><th>相对成本</th></tr></thead>
+        <tbody>
+          <tr><td>G1 点加</td><td>~1 μs</td><td>1×</td></tr>
+          <tr><td>G1 标量乘</td><td>~50 μs</td><td>50×</td></tr>
+          <tr><td>一次配对</td><td>~0.5–1 ms</td><td>~1000×</td></tr>
+          <tr><td>Groth16 验证（3 配对）</td><td>~2 ms</td><td>~2000×</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      所以配对是「贵但值得」的操作：它换来的是常数时间的验证能力。
+      在链上，一次配对约 <strong>7.9 万 gas</strong>（EIP-197 定价：基础 45,000 + 每个配对 34,000）。
+      这是以太坊预编译合约的定价，比自己用 Solidity 实现便宜一个数量级。
+    </p>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>嵌入度：为什么是 12</h2>
+    <p class="lead">
+      配对的目标群必须是 <code>𝔽<sub>p<sup>k</sup></sub></code>，这个 <code>k</code> 叫嵌入度。
+      BN254 和 BLS12-381 的 <code>k</code> 都是 12。
+    </p>
+    <p>
+      为什么需要扩域？因为配对的值必须落在「阶为 n 的子群」里，而 <code>𝔽<sub>p</sub>*</code> 的阶是 <code>p−1</code>，
+      它不一定能被 <code>n</code> 整除。扩到 <code>𝔽<sub>p<sup>k</sup></sub></code> 后，群阶变成 <code>p<sup>k</sup>−1</code>，
+      只要选合适的 <code>k</code>，就能让 <code>n | p<sup>k</sup>−1</code>。
+    </p>
+    <div class="fml">
+      <em>n</em> &nbsp;|&nbsp; <em>p</em><sup><em>k</em></sup> − 1
+      <span class="lbl">n 是 G1/G2 子群的阶；k 是满足这个整除关系的最小正整数，即嵌入度</span>
+    </div>
+    <h3>k 的大小意味着什么</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:100px">嵌入度 k</th><th>GT 元素大小</th><th>配对成本</th><th>典型曲线</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>—</td><td>不存在配对</td><td>secp256k1、Ed25519</td></tr>
+          <tr><td>2</td><td>~508 位</td><td>很低</td><td>部分老曲线，安全性不足</td></tr>
+          <tr><td>6</td><td>~1524 位</td><td>中</td><td>BLS12-377 的某些变体</td></tr>
+          <tr><td><strong>12</strong></td><td>~3048 位</td><td>高但可接受</td><td><strong>BN254、BLS12-381</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <code>k = 12</code> 是一个精心挑选的平衡点：再小则安全性不足（MOV 攻击能把离散对数降到
+      <code>𝔽<sub>p<sup>k</sup></sub></code> 上，k 太小就容易被攻破），再大则配对成本爆炸。
+    </p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>成本，以及不想要配对时的替代方案</h2>
+    <p>配对很贵。这带来两个工程后果：</p>
+    <ul>
+      <li><strong>链上验证</strong>：单次配对 7.9 万 gas，Groth16 的三次配对约 <strong>14.7 万 gas</strong>（45,000 + 3×34,000）。</li>
+      <li><strong>电路内验证</strong>：在 SNARK 电路里算配对，需要几万条约束 —— 这是递归 SNARK 的主要瓶颈。</li>
+    </ul>
+    <p>所以很多方案选择绕开配对：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">方案</th><th>用什么替代</th><th style="width:180px">代价</th></tr></thead>
+        <tbody>
+          <tr><td>FRI（STARK）</td><td>哈希 + Merkle 路径</td><td>证明大几十倍，但抗量子</td></tr>
+          <tr><td>IPA（Halo2）</td><td>内积论证 + 群运算</td><td>验证时间 O(n) 或 O(log n)，但无常数配对</td></tr>
+          <tr><td>Bulletproofs</td><td>内积论证</td><td>证明 O(log n)，验证线性</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">一个反直觉的事实</span>
+        <p>
+          配对虽然「贵」，但它是<strong>唯一能提供常数时间验证</strong>的机制。
+          所有不依赖配对的方案，验证时间都会随规模增长（哪怕是对数级）。
+          在链上场景，这个差别决定了可行性。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>配对是 <code>e: G1 × G2 → GT</code>，满足 <code>e(aP, bQ) = e(P,Q)<sup>ab</sup></code>。</li>
+        <li>它把「群里的线性关系」变成「指数上的乘法关系」，从而能检查乘法约束。</li>
+        <li>KZG 的验证等式在指数上等价于整除关系，只需两次配对。</li>
+        <li>嵌入度 <code>k = 12</code> 是安全性与成本的平衡点。</li>
+        <li>配对贵，所以有 FRI / IPA 等无配对替代，但它们失去了常数验证。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「配对就是两个点相乘。」</span></div>
+      <div class="r"><i>✓</i><div>群上没有乘法。配对是一个<strong>特殊的双线性映射</strong>，
+        输出落在另一个群里，不是「G1 里的点乘 G2 里的点」。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「任何椭圆曲线都能做配对。」</span></div>
+      <div class="r"><i>✓</i><div>需要<strong>嵌入度大于 1</strong> 且曲线参数经过特殊构造（如 BN、BLS 家族）。
+        secp256k1 的嵌入度是 1，做不了。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「配对的输出可以继续参与运算，像普通数一样。」</span></div>
+      <div class="r"><i>✓</i><div>GT 里的元素只能做<strong>乘法和求幂</strong>，而且通常只用来做「相等比较」。
+        想把 GT 元素再喂回 G1 做配对，是不行的。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「配对计算是常数时间，所以没有侧信道问题。」</span></div>
+      <div class="r"><i>✓</i><div>Miller 循环的<strong>执行路径依赖输入</strong>（标量的比特），
+        朴素实现会泄露信息。生产级库必须做常数时间实现或随机化掩码。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="01-02-elliptic-curves.html">
+      <span class="pl">← 上一模块 · 01 · 02</span>
+      <span class="pt">椭圆曲线：把加法定义在曲线上</span>
+    </a>
+    <a href="01-04-polynomials-fft.html">
+      <span class="pl">下一模块 · 01 · 04</span>
+      <span class="pt">多项式与 FFT：为什么 2-adicity 决定性能 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

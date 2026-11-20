@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>编码理论 · Reed–Solomon 与低度测试 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">编码理论</div>
+  <div class="side-s">01 · Coding Theory</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>为什么需要编码</a>
+    <a href="#s2"><span>2</span>直觉：冗余</a>
+    <a href="#s3"><span>3</span>Reed–Solomon 码</a>
+    <a href="#s4"><span>4</span>距离与纠错</a>
+    <a href="#s5"><span>5</span>低度测试</a>
+    <a href="#s6"><span>6</span>FRI 怎么用它</a>
+    <a href="#s7"><span>7</span>手算示例</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="01-04-polynomials-fft.html">← 上一模块 · 多项式与 FFT</a>
+    <a href="01-06-complexity.html">下一模块 · 复杂性理论 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>为什么需要编码</a></li>
+      <li><a href="#s2"><span>2</span>直觉</a></li>
+      <li><a href="#s3"><span>3</span>RS 码</a></li>
+      <li><a href="#s4"><span>4</span>距离与纠错</a></li>
+      <li><a href="#s5"><span>5</span>低度测试</a></li>
+      <li><a href="#s6"><span>6</span>FRI</a></li>
+      <li><a href="#s7"><span>7</span>手算示例</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>01 数学基础</span><span>/</span><b>01 · 05</b></div>
+
+  <header>
+    <h1>编码理论：FRI 靠「离码字多远」判断次数</h1>
+    <p class="tagline">
+      FRI 要在不看全部系数的情况下，确认「这个多项式次数不超过 d」。
+      它用的不是代数，是<strong>距离</strong>：把多项式在更多点上求值，变成一串码字；
+      次数超了，这串值就会离所有合法码字很远。
+    </p>
+    <div class="meta">
+      <span>≈ 13 min</span>
+      <span>难度 3 / 5</span>
+      <span>前置：多项式与 FFT</span>
+      <span>被用于：FRI · STARK · 数据可用性</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      KZG 证明「多项式在某点的取值」很容易：配对一下就完了。
+      但 FRI 要证明的是另一件事：<strong>「这个多项式的次数不超过 d」</strong>。
+    </p>
+    <p>
+      为什么这件事重要？因为在 STARK 里，如果证明者能用高次多项式冒充低次，
+      他就可以在「不该有自由度的地方」塞入额外的值，从而伪造证明。
+    </p>
+    <p>
+      麻烦在于：验证者不能读全部系数（那样证明就 O(n) 了）。
+      他只能抽查若干个点的取值。那么，<strong>抽查能判断次数吗？</strong>
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">答案是「能，但需要一个前提」</span>
+        <p>
+          单看几个点当然判断不了。但如果把多项式在<strong>远多于其次数的点</strong>上求值，
+          得到的这串值就有了「冗余」—— 冗余让高次多项式无处躲藏。
+          这就是编码理论登场的地方。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：为什么「多写几遍」能发现造假</h2>
+    <p>
+      你要确认一个人报的数「不超过 10」。他只报了 3 个数：2、5、7。你能判断吗？不能。
+    </p>
+    <p>
+      但如果要求他在 100 个位置都报数，而且这些数必须落在一条「次数 ≤ 10 的曲线」上 ——
+      那么他只要有一个位置乱报，整条曲线就对不上了。
+    </p>
+    <div class="fml">
+      9 个系数 &nbsp;⟶&nbsp; 在 100 个点上求值 &nbsp;⟶&nbsp; 100 个数
+      <span class="lbl">信息被「拉长」了 11 倍。这 11 倍冗余就是检查的抓手</span>
+    </div>
+    <p>
+      编码理论把这个直觉形式化：<strong>合法的低次多项式，其求值向量构成一个「码」；
+      任何不在码里的向量，离码里所有元素都有一定距离。</strong>
+    </p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>Reed–Solomon 码：把多项式变成码字</h2>
+    <div class="fml" style="font-size:13px">
+      消息：&nbsp; <em>m</em> = ( <em>m</em><sub>0</sub>, <em>m</em><sub>1</sub>, …, <em>m</em><sub><em>k</em>−1</sub> ) &nbsp;⟶&nbsp; 多项式 <em>p</em>(x) = Σ <em>m</em><sub><em>i</em></sub>x<sup><em>i</em></sup><br>
+      码字：&nbsp; ( <em>p</em>(α<sub>0</sub>), <em>p</em>(α<sub>1</sub>), …, <em>p</em>(α<sub><em>n</em>−1</sub>) ) &nbsp;∈&nbsp; 𝔽<sup><em>n</em></sup>
+      <span class="lbl">α 是 n 个互不相同的点；n > k 时就有冗余</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:100px">参数</th><th>含义</th><th style="width:180px">典型取值</th></tr></thead>
+        <tbody>
+          <tr><td><code>k</code></td><td>消息长度 = 多项式次数 + 1</td><td>电路规模的函数</td></tr>
+          <tr><td><code>n</code></td><td>码字长度 = 求值点数</td><td>通常取 <code>4k</code> 或 <code>8k</code></td></tr>
+          <tr><td><code>ρ = k/n</code></td><td>码率（rate）。越低冗余越大，检查越容易</td><td>1/4 或 1/8</td></tr>
+          <tr><td><code>d</code></td><td>最小距离，见下一节</td><td><code>n − k + 1</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <strong>码率</strong>是理解 FRI 成本的关键：<code>ρ = 1/4</code> 意味着证明者要把数据「写 4 遍」。
+      写得多，检查就容易（抽几个点就能发现问题）；但证明也变大。
+    </p>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>距离：RS 码为什么是最优的</h2>
+    <p>
+      「距离」指两个码字在多少个位置不同。RS 码有一个极强的性质：
+    </p>
+    <div class="fml">
+      <em>d</em><sub>min</sub> = <em>n</em> − <em>k</em> + 1
+      <span class="lbl">这叫 MDS（最大距离可分）性质，是码理论里的最优界</span>
+    </div>
+    <p>
+      为什么？因为两个不同的、次数都小于 k 的多项式，最多在 <code>k−1</code> 个点相等
+      （相减后是次数 <code>≤ k−1</code> 的多项式，最多 <code>k−1</code> 个根）。
+      所以它们在 <code>n</code> 个点上至少 <code>n−(k−1)</code> 个位置不同。
+    </p>
+    <div class="fml" style="font-size:13px">
+      <em>p</em> ≠ <em>q</em>, &nbsp; deg <em>p</em>, deg <em>q</em> &lt; <em>k</em> &nbsp;⟹&nbsp;
+      |{ <em>i</em> : <em>p</em>(α<sub><em>i</em></sub>) ≠ <em>q</em>(α<sub><em>i</em></sub>) }| ≥ <em>n</em> − <em>k</em> + 1
+    </div>
+    <p>
+      这个下界是「免费」的：不需要任何额外结构，只靠多项式的根的个数定理。
+      这就是 RS 码在 ZKP 里如此受欢迎的原因。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">注意「距离」是对码字说的，不是对值说的</span>
+        <p>
+          一个随便乱写的向量，与最近的合法码字的距离可能很小（如果它只错了一两个位置）。
+          FRI 要保证的是：<strong>如果证明者在某处作弊，他必须改掉很多位置才能回到码里</strong> ——
+          而那些位置会被随机抽查抓到。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>低度测试：从「距离」到「次数」</h2>
+    <p class="lead">
+      这是 FRI 的核心命题，也是编码理论在 ZKP 里最重要的一次应用。
+    </p>
+    <div class="fml" style="font-size:13px;text-align:left;line-height:2">
+      <strong>命题</strong>：设 <em>f</em> 在 <em>n</em> 个点上取值，码率 <em>ρ</em> = <em>k</em>/<em>n</em>。<br>
+      若 <em>f</em> 与所有次数 &lt; <em>k</em> 的多项式的距离都 &gt; <em>δ</em>，则称 <em>f</em> 是 <em>δ</em>-远离的。<br>
+      低度测试要区分：<em>f</em> 在码里 &nbsp;vs&nbsp; <em>f</em> 远离码。
+    </div>
+    <p>
+      朴素做法是查全部 n 个点，O(n)。FRI 把它降到了 <code>O(log² n)</code>，靠的是<strong>折叠</strong>：
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>把 f 拆成偶数项和奇数项</h4>
+        <p><code>f(x) = f<sub>even</sub>(x²) + x·f<sub>odd</sub>(x²)</code></p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>用随机 α 组合成新多项式</h4>
+        <p><code>f'(x) = f<sub>even</sub>(x) + α·f<sub>odd</sub>(x)</code>，次数减半。</p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>递归，直到次数变成常数</h4>
+        <p>每轮规模减半，共 <code>log k</code> 轮。每轮只需检查<strong>一个随机点</strong>的一致性。</p>
+      </div>
+    </div>
+    <p>
+      为什么折叠能保持「低度性」？因为如果 <code>f</code> 是低次的，<code>f'</code> 必然也是低次的（次数减半）。
+      反过来，如果 <code>f</code> 是远离的，折叠后大概率仍然远离 —— 这一步的严格证明依赖编码理论的
+      「距离保持」性质，是 FRI 论文的技术核心。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么码率要取 1/4 而不是 1/2</span>
+        <p>
+          码率越低，距离越大，折叠后「远离性」保持得越好，需要的查询次数越少。
+          但码率低意味着求值点更多、证明更大。<code>1/4</code> 是安全性与体积的常用折中；
+          有些实现用 <code>1/8</code> 换取更少的查询轮次。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>FRI 的完整验证流程</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:60px">步骤</th><th style="width:130px">证明者</th><th>验证者</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>承诺 <code>f</code> 在 n 个点的求值（Merkle 树）</td><td>—</td></tr>
+          <tr><td>2</td><td>—</td><td>发随机挑战 <code>α₀</code></td></tr>
+          <tr><td>3</td><td>折叠得到 <code>f₁</code>，承诺它</td><td>—</td></tr>
+          <tr><td>4</td><td>…… 重复 log k 轮 ……</td><td>每轮发新的 <code>α</code></td></tr>
+          <tr><td>5</td><td>发送最后那个常数多项式</td><td>直接检查次数</td></tr>
+          <tr><td>6</td><td>—</td><td><strong>回查</strong>：对每轮随机选若干位置，要求打开对应的 Merkle 路径，验证折叠关系成立</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      最后一步是关键：验证者不是「相信」每轮都对，而是<strong>抽查</strong>。
+      每一轮抽 <code>q</code> 个位置，作弊被发现的概率是 <code>1 − (1−δ)<sup>q</sup></code>。
+      取 <code>q ≈ 30</code>、<code>δ ≈ 1/4</code>，漏检概率就降到可忽略。
+    </p>
+    <div class="fml" style="font-size:13px">
+      Pr[ 作弊未被发现 ] ≤ ( 1 − δ )<sup><em>q</em></sup>
+      <span class="lbl">δ 是「远离度」，q 是每轮查询次数；这是 FRI 可靠性的来源</span>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>一个能手算的小例子</h2>
+    <p>取 <code>k = 3</code>（次数 &lt; 3），求值点 <code>n = 6</code>，码率 <code>ρ = 1/2</code>。</p>
+    <p>消息 <code>(1, 2, 3)</code> 对应 <code>p(x) = 1 + 2x + 3x²</code>，在 <code>x = 0,1,2,3,4,5</code> 上求值：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:60px">x</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>
+        <tbody>
+          <tr><td><code>p(x)</code></td><td>1</td><td>6</td><td>17</td><td>34</td><td>57</td><td>86</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>如果证明者偷偷加一个高次项</h3>
+    <p>把 <code>p</code> 改成 <code>p*(x) = p(x) + x⁵</code>（次数变成 5，已经超出 k=3）：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:60px">x</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>
+        <tbody>
+          <tr><td><code>p*(x)</code></td><td>1</td><td>7</td><td>49</td><td>277</td><td>1081</td><td>3211</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      在 6 个点里有 5 个和原来不同（只有 <code>x=0</code> 相同）。
+      也就是说，<strong>它离任何低次码字都很远</strong>，随机抽一个点就有 5/6 的概率发现问题。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">这就是冗余的作用</span>
+        <p>
+          如果只存 3 个系数，证明者加一项你根本看不出来。
+          存了 6 个求值点，多出来的 3 个就是「检查余量」。
+          FRI 把这件事做到 <code>log n</code> 层，每层都留余量，最终用极少的抽查覆盖全部。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>RS 码 = 把多项式在 n 个点上求值，<code>n > k</code> 产生冗余。</li>
+        <li>最小距离 <code>d = n − k + 1</code>，来自「次数 &lt; k 的多项式最多 k−1 个根」。</li>
+        <li>低度测试：区分「在码里」和「远离码」，靠距离而非系数。</li>
+        <li>FRI 用折叠把规模减半 <code>log k</code> 次，每轮抽查若干个点。</li>
+        <li>可靠性 <code>≤ (1−δ)<sup>q</sup></code>，δ 是远离度，q 是查询次数。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「编码理论就是纠错码，和 ZKP 没关系。」</span></div>
+      <div class="r"><i>✓</i><div>FRI、STARK、以及所有基于哈希的证明系统，核心都是<strong>低度测试</strong>，
+        而低度测试的理论基础就是编码理论的距离性质。没有它，就没有「不用配对也能验证」这条路。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「码率越小越安全，所以取 1/100 最好。」</span></div>
+      <div class="r"><i>✓</i><div>码率小意味着求值点数量爆炸，证明体积和生成时间同步增长。
+        存在一个最优区间（通常 1/2 到 1/8），再低就是浪费。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「抽查 30 个点，作弊概率是 30/n。」</span></div>
+      <div class="r"><i>✓</i><div>不是线性关系。失败概率是 <code>(1−δ)<sup>q</sup></code>，<strong>指数衰减</strong>。
+        这正是抽查有效的原因：30 次查询就能把漏检概率压到 <code>10<sup>−4</sup></code> 以下。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「FRI 只证明次数，不证明内容。」</span></div>
+      <div class="r"><i>✓</i><div>对。次数只是「形状」。要证明「内容正确」，还需要<strong>约束多项式</strong>：
+        把「必须满足的规则」写成多项式，再验证它在码字上为零。两者结合才是完整的 STARK。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="01-04-polynomials-fft.html">
+      <span class="pl">← 上一模块 · 01 · 04</span>
+      <span class="pt">多项式与 FFT：为什么 2-adicity 决定性能</span>
+    </a>
+    <a href="01-06-complexity.html">
+      <span class="pl">下一模块 · 01 · 06</span>
+      <span class="pt">复杂性理论：证明为什么能被压缩 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

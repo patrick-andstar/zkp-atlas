@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>递归组合 · Recursion &amp; IVC | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">递归组合</div>
+  <div class="side-s">02 · Recursion &amp; IVC</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>要解决的问题</a>
+    <a href="#s2"><span>2</span>直觉：套娃</a>
+    <a href="#s3"><span>3</span>IVC 的定义</a>
+    <a href="#s4"><span>4</span>递归怎么搭起来</a>
+    <a href="#s5"><span>5</span>循环曲线问题</a>
+    <a href="#s6"><span>6</span>聚合 vs 递归</a>
+    <a href="#s7"><span>7</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="02-08-proof-systems.html">← 上一模块 · 证明系统</a>
+    <a href="02-10-sumcheck.html">下一模块 · Sumcheck →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>要解决的问题</a></li>
+      <li><a href="#s2"><span>2</span>直觉</a></li>
+      <li><a href="#s3"><span>3</span>IVC 定义</a></li>
+      <li><a href="#s4"><span>4</span>怎么搭起来</a></li>
+      <li><a href="#s5"><span>5</span>循环曲线问题</a></li>
+      <li><a href="#s6"><span>6</span>聚合 vs 递归</a></li>
+      <li><a href="#s7"><span>7</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>02 证明构造</span><span>/</span><b>02 · 09</b></div>
+
+  <header>
+    <h1>递归组合：让证明去验证另一个证明</h1>
+    <p class="tagline">
+      一个 SNARK 证明了「这段计算是对的」。但如果计算本身在增长呢？
+      区块链每秒产生新块，虚拟机每秒执行新指令。<strong>递归</strong>让最新那个证明里，
+      包含着「之前所有历史都正确」的证据。
+    </p>
+    <div class="meta">
+      <span class="hot">进阶模块</span>
+      <span>≈ 16 min</span>
+      <span>难度 5 / 5</span>
+      <span>前置：证明系统 · 折叠方案</span>
+      <span>后续：工程层的聚合</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决的问题</h2>
+    <p class="lead">
+      假设你要证明「这条链从创世块到现在的每一个区块都合法」。
+      最直接的办法是生成一个巨大的电路，把全部历史塞进去 —— 但历史会不断变长，电路规模没有上限。
+    </p>
+    <p>
+      递归的思路是：<strong>证明的验证过程本身，也可以被写进电路</strong>。
+      于是你可以构造这样一条链：
+    </p>
+    <div class="fml" style="font-size:13px">
+      π<sub><em>i</em></sub> = 证明( 「π<sub><em>i</em>−1</sub> 有效」 ∧ 「第 <em>i</em> 步计算正确」 )
+      <span class="lbl">每个证明都在说：前 i−1 步全对，加上这一步也对</span>
+    </div>
+    <p>
+      这样证明的大小是<strong>常数</strong>，但覆盖的计算量可以无限增长。
+      验证者只验最后一个 <code>π<sub>n</sub></code>，就相信了全部 n 步。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">这和「折叠」的区别</span>
+        <p>
+          折叠（上一模块）是<strong>推迟验证</strong>：先攒着，最后一次性证明。
+          递归是<strong>立即自证</strong>：每一步都产出一个完整证明，且这个证明包含对前一步的验证。
+          递归的证明可以单独拿出来用，折叠的不行。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：俄罗斯套娃，但每层都一样大</h2>
+    <p>
+      普通的套娃越往里越小，递归 SNARK 反过来：<strong>最外层和里面那层一样大</strong>。
+    </p>
+    <p>
+      想象你有一台「证明复印机」。你把一份证明塞进去，它输出一份新的证明，
+      内容变成「旧证明有效 + 我又做了一步」。输出的大小和输入完全一样。
+    </p>
+    <p>
+      于是你可以无限地喂进去：<code>π₀ → π₁ → π₂ → … → π<sub>n</sub></code>。
+      最后拿出来的 <code>π<sub>n</sub></code> 只有几百字节，但它背后的计算量是 n 步。
+    </p>
+    <div class="fml">
+      | π<sub><em>i</em></sub> | = <em>O</em>(1) &nbsp;&nbsp;而&nbsp;&nbsp; 它能覆盖的计算量 = <em>i</em> 步
+      <span class="lbl">这就是「简洁性」在时间维度上的延伸</span>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>IVC：把「套娃」写成定义</h2>
+    <p class="lead">
+      IVC（Incrementally Verifiable Computation）是递归的形式化模型。
+      它描述的是一类计算：从初始状态出发，反复应用同一个函数。
+    </p>
+    <div class="fml" style="font-size:13px">
+      <em>z</em><sub>0</sub> &nbsp;→&nbsp; <em>z</em><sub>1</sub> = <em>F</em>(<em>z</em><sub>0</sub>) &nbsp;→&nbsp;
+      <em>z</em><sub>2</sub> = <em>F</em>(<em>z</em><sub>1</sub>) &nbsp;→&nbsp; ⋯ &nbsp;→&nbsp; <em>z</em><sub><em>n</em></sub> = <em>F</em>(<em>z</em><sub><em>n</em>−1</sub>)
+      <span class="lbl">F 是状态转移函数；z 是完整状态（比如虚拟机的全部寄存器 + 内存根）</span>
+    </div>
+    <p>IVC 要求证明者输出 <code>(z<sub>n</sub>, π<sub>n</sub>)</code>，使得：</p>
+    <ul>
+      <li><strong>正确性</strong>：<code>π<sub>n</sub></code> 证明「存在一条从 <code>z₀</code> 到 <code>z<sub>n</sub></code> 的合法路径」；</li>
+      <li><strong>简洁性</strong>：<code>π<sub>n</sub></code> 的大小与 n 无关；</li>
+      <li><strong>增量性</strong>：生成 <code>π<sub>i</sub></code> 只需要 <code>π<sub>i−1</sub></code> 和 <code>z<sub>i</sub></code>，不需要重算历史。</li>
+    </ul>
+    <p>
+      第三条是「增量」的含义：<strong>生成新证明的成本是常数</strong>，不管你已经跑了多少步。
+      没有这一条，递归就没有工程价值。
+    </p>
+
+    <h3>三要素为什么缺一不可</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">缺掉哪一条</th><th>会发生什么</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>缺正确性</td>
+            <td>证明不再有意义 —— 验证者接受了它，但背后的计算可能是错的。整个系统退化成「一个很贵的签名」</td>
+          </tr>
+          <tr>
+            <td>缺简洁性</td>
+            <td>证明随步数增长。跑一百万步就得到一百万个群元素，和「把历史全发过去」没有区别</td>
+          </tr>
+          <tr>
+            <td>缺增量性</td>
+            <td>每一步都要从头重算，复杂度 O(n²)。理论上还能工作，工程上完全不可用</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      这三条不是「最好都有」，而是<strong>定义的一部分</strong>。
+      很多论文里的「递归证明」只满足前两条，第三步靠工程手段（缓存中间状态）补 ——
+      这种实现通常跑不了长链。
+    </p>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>递归电路里到底装了什么</h2>
+    <p class="lead">
+      这是最容易含糊的地方。说「在电路里验证一个 SNARK」，具体是哪些约束？
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>验证密钥的哈希</h4>
+        <p>
+          电路里要硬编码 <code>vk</code> 的摘要，确保「被验证的证明用的是同一个电路」。
+          否则攻击者可以换一个对自己有利的 <code>vk</code>。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>公开输入的绑定</h4>
+        <p>
+          前一步的公开输入（比如旧状态根）必须等于当前步的某个输入。这一条把「链」接起来。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>配对 / 哈希的验证逻辑</h4>
+        <p>
+          如果底层是 Groth16，电路里要实现椭圆曲线配对 —— 这是几万条约束的大头。
+          如果底层是 FRI-based，电路里要做哈希和 Merkle 路径检查，相对便宜但也不小。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">4</div>
+        <h4>本步计算 F 的约束</h4>
+        <p>
+          真正「干活」的部分。讽刺的是，在很多 IVC 系统里，<strong>验证前一个证明的开销
+          远大于本步计算本身</strong> —— 这就是折叠方案出现的动机。
+        </p>
+      </div>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:180px">底层方案</th><th>电路内验证的主要成本</th><th style="width:120px">量级</th></tr></thead>
+        <tbody>
+          <tr><td>Groth16（配对）</td><td>椭圆曲线配对运算</td><td>~ 数万约束</td></tr>
+          <tr><td>FRI / STARK</td><td>哈希 + Merkle 路径</td><td>~ 数千约束</td></tr>
+          <tr><td>IPA（Halo2）</td><td>群运算 + 内积</td><td>~ 数千约束</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>验证密钥该不该进电路</h3>
+    <p>
+      答案看起来很明显（当然要），但这里有三种做法，安全性差别很大：
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:160px">做法</th><th>安全性</th><th style="width:180px">问题</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>硬编码完整 vk</td>
+            <td><strong>最高</strong></td>
+            <td>电路规模大，每次改 vk 要重编电路</td>
+          </tr>
+          <tr>
+            <td>硬编码 vk 的哈希</td>
+            <td>高</td>
+            <td>电路里要多做一次哈希验证，额外几千条约束</td>
+          </tr>
+          <tr>
+            <td>把 vk 当公开输入</td>
+            <td><strong>危险</strong></td>
+            <td>证明者可以换一个对自己有利的 vk —— 除非外层还有约束把它钉住</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      第三种做法在「通用递归」场景下是必要的（比如 Nova 要支持任意电路），
+      但必须配合「vk 由前一层证明承诺」的机制。<strong>单独把 vk 当公开输入，等于没有约束。</strong>
+    </p>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>循环曲线问题：一个必须绕过的坑</h2>
+    <p>
+      递归有一个看起来很尴尬的技术障碍：<strong>你要在曲线 A 的电路里，验证曲线 A 上的运算</strong>。
+      但电路是用<strong>标量域</strong>定义的，而群运算定义在<strong>基域</strong>上 —— 两者大小不匹配。
+    </p>
+    <p>
+      具体说：BN254 的基域是 254 位，标量域也是 254 位，但两者是不同的素数。
+      电路的约束在标量域上，而验证配对需要基域元素。直接做会导致「域元素放不进电路」。
+    </p>
+    <h3>两种解法</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:140px">方案</th><th>做法</th><th style="width:160px">代表</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>循环曲线</strong><br><span style="font-size:12px;color:var(--ink3)">cycles of curves</span></td>
+            <td>选两条曲线，A 的基域等于 B 的标量域，反之亦然。在 A 上证明，在 B 上验证，交替进行。</td>
+            <td>Pasta 曲线（Pallas / Vesta），Halo2 使用</td>
+          </tr>
+          <tr>
+            <td><strong>非原生域运算</strong><br><span style="font-size:12px;color:var(--ink3)">non-native arithmetic</span></td>
+            <td>在电路里用多个小域元素模拟大域元素，代价是约束数翻几倍。</td>
+            <td>多数早期 Groth16 递归实现</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      循环曲线的优雅之处：<strong>两边的域大小天然对齐</strong>，不需要模拟，约束数大幅下降。
+      代价是要维护两套曲线和两套电路，工程复杂度翻倍。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么这条曲线叫「Pasta」</span>
+        <p>
+          Pallas 和 Vesta 是希腊神话里的两个名字，合起来谐音 pasta（意大利面）。
+          Zcash 团队起的名字 —— 密码学圈的命名品味一直很稳定。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>聚合 vs 递归：目标不同</h2>
+    <p class="lead">
+      这两个词经常被混用，但它们解决的不是同一个问题。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">维度</th><th>递归（recursion）</th><th>聚合（aggregation）</th></tr></thead>
+        <tbody>
+          <tr><td>输入</td><td>一个证明 + 一步新计算</td><td>n 个<strong>独立</strong>的证明</td></tr>
+          <tr><td>输出</td><td>一个覆盖更多步骤的证明</td><td>一个「这 n 个都有效」的证明</td></tr>
+          <tr><td>关系</td><td>时间上的<strong>串联</strong></td><td>空间上的<strong>并联</strong></td></tr>
+          <tr><td>典型用途</td><td>区块链历史、虚拟机执行</td><td>多个用户的交易批量验证</td></tr>
+          <tr><td>代表</td><td>Nova、Halo2 递归、zkSync</td><td>SnarkPack、Groth16 聚合</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      一句话：<strong>递归是「把历史压成一个」，聚合是「把一批压成一个」</strong>。
+      实际系统经常两者都用：先把一批交易聚合，再把聚合结果递归进历史。
+    </p>
+
+    <h3>聚合的三种形态，成本差很多</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">形态</th><th>做法</th><th style="width:170px">限制</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>配对聚合</strong></td>
+            <td>利用双线性把 n 个验证等式乘起来，只算一次多配对</td>
+            <td>只能聚合同电路、同 vk 的证明</td>
+          </tr>
+          <tr>
+            <td><strong>递归聚合</strong></td>
+            <td>把 n 个证明的验证过程写进电路，生成一个新证明</td>
+            <td>电路内验证成本高（几万约束）</td>
+          </tr>
+          <tr>
+            <td><strong>证明聚合树</strong></td>
+            <td>两两合并成二叉树，逐层向上</td>
+            <td>深度 <code>log n</code>，需要多轮递归</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      选型的判断标准是「<strong>这 n 个证明是不是同一个电路产生的</strong>」：
+      是 → 配对聚合，几乎免费；否 → 递归聚合，贵但通用。
+    </p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>递归 = 在电路里验证前一个证明，从而让证明大小与计算量解耦。</li>
+        <li>IVC 的三要素：正确性、简洁性、<strong>增量性</strong>（成本不随步数增长）。</li>
+        <li>电路里验证的开销往往远大于本步计算，这是折叠方案的动机。</li>
+        <li>循环曲线（Pallas/Vesta）解决「域大小不匹配」，代价是双倍工程复杂度。</li>
+        <li>递归是串联历史，聚合是并联批次，不要混用。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「递归就是证明套证明，很简单的想法。」</span></div>
+      <div class="r"><i>✓</i><div>想法简单，实现极难。要在电路里重写整套验证逻辑（配对、哈希、群运算），
+        还要处理域不匹配、证明系统自举、以及性能优化。<strong>这是 ZKP 工程里最硬的一块。</strong></div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「递归之后证明会越来越小。」</span></div>
+      <div class="r"><i>✓</i><div>不会变小，而是<strong>保持不变</strong>。递归的意义是「不增长」，
+        不是「压缩」。想要更小，需要换证明系统或做包装（比如 STARK 包成 Groth16）。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「有了折叠就不需要递归了。」</span></div>
+      <div class="r"><i>✓</i><div>折叠不产生可独立验证的证明。如果你需要「随时拿出某一步的证明给别人看」，
+        必须用递归。折叠适合「只关心最终结果」的场景。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「递归电路的规模是固定的，所以成本是常数。」</span></div>
+      <div class="r"><i>✓</i><div>规模固定不等于成本低。一个递归电路可能包含几万条约束验证逻辑，
+        每步都要跑一遍。<strong>「常数」是相对于步数而言，绝对值可能很大。</strong></div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="02-08-proof-systems.html">
+      <span class="pl">← 上一模块 · 02 · 08</span>
+      <span class="pt">证明系统：三个群元素为什么够</span>
+    </a>
+    <a href="02-10-sumcheck.html">
+      <span class="pl">下一模块 · 02 · 10</span>
+      <span class="pt">Sumcheck：一次消掉一个变量 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

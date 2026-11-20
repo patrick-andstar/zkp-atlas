@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZKP 技术图谱 · 33 个模块</title>
+<style>
+:root{
+  --paper:#FAF7F0; --card:#FFFFFF; --ink:#16202A; --ink2:#4A5764; --ink3:#7C8894;
+  --rule:#E2DCD0; --rule2:#EDE8DC;
+  --navy:#12384F; --navy2:#1D5474; --navy-soft:#E9F0F5;
+  --rust:#A6432B; --rust-soft:#F8ECE7;
+  --moss:#55703F; --moss-soft:#EDF2E5;
+  --gold:#8A6A22; --gold-soft:#F8F1DE;
+  --serif:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong",Georgia,serif;
+  --sans:"Source Han Sans SC","Noto Sans CJK SC","PingFang SC","Microsoft YaHei",-apple-system,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.8;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 32px}
+
+header{padding:72px 0 44px;border-bottom:1px solid var(--rule)}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--rust);margin-bottom:20px}
+h1{font-family:var(--serif);font-size:clamp(30px,4vw,46px);line-height:1.25;font-weight:700;margin:0 0 16px;letter-spacing:-.01em}
+.sub{font-family:var(--serif);font-size:18px;line-height:1.8;color:var(--ink2);max-width:640px;margin:0}
+.stats{display:flex;gap:28px;margin-top:32px;flex-wrap:wrap}
+.stat{font-family:var(--mono);font-size:11px;color:var(--ink3);letter-spacing:.06em}
+.stat b{display:block;font-size:24px;color:var(--navy);font-weight:700;letter-spacing:0;margin-bottom:2px}
+
+section{padding-top:64px}
+.sec-head{display:flex;align-items:baseline;gap:14px;border-bottom:1px solid var(--rule);padding-bottom:12px;margin-bottom:8px}
+.sec-num{font-family:var(--mono);font-size:12px;color:var(--rust);letter-spacing:.1em}
+h2{font-family:var(--serif);font-size:27px;font-weight:700;margin:0}
+.sec-desc{font-size:14px;color:var(--ink3);margin:10px 0 28px;max-width:680px;line-height:1.75}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:8px}
+a.item{
+  display:block;text-decoration:none;color:inherit;background:var(--card);
+  border:1px solid var(--rule);padding:20px 20px 16px;position:relative;
+  transition:border-color .18s,box-shadow .18s,transform .18s;
+}
+a.item:hover{border-color:#C9BFAC;box-shadow:0 2px 2px rgba(22,32,42,.03),0 10px 26px -18px rgba(22,32,42,.4);transform:translateY(-2px)}
+a.item .no{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--rust);margin-bottom:8px;display:block}
+a.item h3{font-size:15.5px;font-weight:700;margin:0 0 3px;line-height:1.45}
+a.item .en{font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.03em;display:block;margin-bottom:9px}
+a.item p{font-size:13px;line-height:1.7;color:var(--ink2);margin:0}
+a.item .foot{display:flex;justify-content:space-between;align-items:center;margin-top:13px;padding-top:10px;border-top:1px dashed var(--rule2);font-family:var(--mono);font-size:9.5px;color:var(--ink3);letter-spacing:.05em}
+a.item .arrow{color:var(--rust);font-size:13px}
+
+.band{padding:14px 18px;border-left:3px solid var(--navy);background:var(--navy-soft);font-size:13.5px;color:var(--ink2);line-height:1.75;margin-bottom:26px}
+.band b{color:var(--navy)}
+
+footer{margin-top:80px;padding:28px 0 60px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:10.5px;color:var(--ink3);letter-spacing:.06em;line-height:2}
+
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){
+  body{font-size:15.5px}
+  .wrap{padding:0 20px}
+  header{padding:44px 0 32px}
+  .grid{grid-template-columns:1fr}
+  section{padding-top:48px}
+}
+@media print{a.item{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Zero-Knowledge Proof · Technical Atlas</div>
+  <h1>ZKP 技术图谱</h1>
+  <p class="sub">
+    零知识证明不是一个算法，是三层技术栈的交叉产物。
+    这里把它拆成 <strong>33 个可以单独学完的模块</strong>，每个模块一页，从「它要解决什么」讲到「公式怎么写、为什么这么写」。
+    另外补了一层 <strong>00 零基础前置</strong> —— 没有数学背景也能从那里起步。
+  </p>
+  <div class="stats">
+    <div class="stat"><b>33</b>个模块</div>
+    <div class="stat"><b>4</b>大类别</div>
+    <div class="stat"><b>00</b>零基础前置</div>
+    <div class="stat"><b>01</b>数学基础</div>
+    <div class="stat"><b>02</b>证明构造</div>
+    <div class="stat"><b>03</b>工程实现</div>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><span class="sec-num">00</span><h2>零基础前置</h2></div>
+  <p class="sec-desc">
+    没有数论或抽象代数背景的话，从这六页开始。<strong>「群」「域」「根」「矩阵」这几个词不解决，后面每一页都只能背公式。</strong>
+    这一层不假设你学过任何大学数学 —— 全部从「为什么要有这个概念」讲起，每个结论都配手算。
+  </p>
+  <div class="band">
+    <b>读法：</b>如果 01 · 01 你读得下去，00 层只扫一眼 00 · 05 的符号表就够。
+    如果读不下去，按 <strong>00·01 → 00·02 → 00·03 → 00·04 → 00·06</strong> 顺序读，一页 15–22 分钟，两晚能补完。
+    顺序不能乱 —— 群依赖数系，域依赖群，单位根依赖域，线性代数依赖前三者。
+    00 · 05 是速查表，随时可查，不必占整块时间。
+  </div>
+  <div class="grid">
+    <a class="item" href="00-01-number-systems.html">
+      <span class="no">00 · 01</span><h3>数系地图</h3><span class="en">Number Systems</span>
+      <p>ℕ ℤ ℚ ℝ ℂ 𝔽 是什么关系。素数、gcd、裴蜀定理，以及集合与多重集的区别。</p>
+      <span class="foot"><span>≈ 16 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="00-02-groups.html">
+      <span class="no">00 · 02</span><h3>群</h3><span class="en">Groups</span>
+      <p>四条规矩、循环群、生成元、阶。附同态与同构 —— 「同态承诺」到底在说什么。</p>
+      <span class="foot"><span>≈ 19 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="00-03-rings-fields.html">
+      <span class="no">00 · 03</span><h3>环与域</h3><span class="en">Rings &amp; Fields</span>
+      <p>零因子、素性、特征，为什么 mod 12 不行 mod 7 行。附多项式运算与零点多项式。</p>
+      <span class="foot"><span>≈ 22 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="00-04-roots.html">
+      <span class="no">00 · 04</span><h3>根与单位根</h3><span class="en">Roots of Unity</span>
+      <p>「根」的三种意思。ωⁿ=1 为什么让 FFT 快五万倍，2-adicity 从哪来。</p>
+      <span class="foot"><span>≈ 16 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="00-05-notation.html">
+      <span class="no">00 · 05</span><h3>符号黑话</h3><span class="en">Notation</span>
+      <p>希腊字母怎么读、∈ ≡ ↦ 什么意思、论文缩写速查。附一个真实公式的拆解演示。</p>
+      <span class="foot"><span>≈ 10 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="00-06-linear-algebra.html">
+      <span class="no">00 · 06</span><h3>线性代数</h3><span class="en">Linear Algebra</span>
+      <p>向量、内积、矩阵、线性组合、秩。02·01 一页 28 处矩阵，不补读不动。</p>
+      <span class="foot"><span>≈ 22 min</span><span class="arrow">→</span></span>
+    </a>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">01</span><h2>数学基础</h2></div>
+  <p class="sec-desc">
+    这一层回答「凭什么可以这样算」。它最难，但最稳定 —— 几十年不变。不需要全部学完再动手，
+    但有限域、配对、多项式这三块必须真懂，否则后面所有公式都只能背。
+    <strong>如果这里读着吃力，说明缺的是 00 层，不是智商。</strong>
+  </p>
+  <div class="grid">
+    <a class="item" href="01-01-finite-fields.html">
+      <span class="no">01 · 01</span><h3>有限域</h3><span class="en">Finite Fields</span>
+      <p>所有运算都在模 p 的圈里做。理解为什么「除以 3」等于「乘以 3 的逆元」。</p>
+      <span class="foot"><span>≈ 12 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="01-02-elliptic-curves.html">
+      <span class="no">01 · 02</span><h3>椭圆曲线</h3><span class="en">Elliptic Curves</span>
+      <p>把「加法」定义在曲线点上。为什么离散对数难解，以及 254 位这个数字从哪来。</p>
+      <span class="foot"><span>≈ 14 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="01-03-pairings.html">
+      <span class="no">01 · 03</span><h3>双线性配对</h3><span class="en">Bilinear Pairings</span>
+      <p>让「指数上的乘法」变成「群里的加法」。KZG 验证等式全靠它。</p>
+      <span class="foot"><span>≈ 16 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="01-04-polynomials-fft.html">
+      <span class="no">01 · 04</span><h3>多项式与 FFT</h3><span class="en">Polynomials &amp; FFT</span>
+      <p>插值、求值、NTT。为什么 2-adicity 决定了你的电路能跑多快。</p>
+      <span class="foot"><span>≈ 15 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="01-05-coding-theory.html">
+      <span class="no">01 · 05</span><h3>编码理论</h3><span class="en">Coding Theory</span>
+      <p>Reed–Solomon 码与距离。FRI 靠「远离码字」来判断多项式次数。</p>
+      <span class="foot"><span>≈ 13 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="01-06-complexity.html">
+      <span class="no">01 · 06</span><h3>复杂性理论</h3><span class="en">Complexity Theory</span>
+      <p>NP、IP、PCP、IOP。为什么「证明」可以被压缩，理论上限在哪。</p>
+      <span class="foot"><span>≈ 14 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="01-07-hash-rom.html">
+      <span class="no">01 · 07</span><h3>哈希与随机预言机</h3><span class="en">Hash &amp; Random Oracle</span>
+      <p>Fiat–Shamir 的合法性来源。以及为什么「哈希当随机数」其实是一个假设。</p>
+      <span class="foot"><span>≈ 12 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="01-08-commitments.html">
+      <span class="no">01 · 08</span><h3>承诺方案</h3><span class="en">Commitment Schemes</span>
+      <p>「先锁住、后打开」。隐藏性与绑定性为什么不能同时做到统计意义。</p>
+      <span class="foot"><span>≈ 13 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="01-09-probability.html">
+      <span class="no">01 · 09</span><h3>概率与抽样</h3><span class="en">Probability &amp; Sampling</span>
+      <p>Schwartz–Zippel 引理。为什么「随机点验一次」就等于「验了全部」。</p>
+      <span class="foot"><span>≈ 12 min</span><span class="arrow">→</span></span>
+    </a>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">02</span><h2>证明构造</h2></div>
+  <p class="sec-desc">
+    这一层回答「怎么把计算变成证明」。概念密度最大，也是 ZKP 真正的核心 ——
+    换成任何应用，用的都是这十一个零件。
+  </p>
+  <div class="band">
+    <b>建议顺序：</b>算术化 → 多项式承诺 → 零知识变换 → Fiat–Shamir → 证明系统 → 查找论证 → 置换论证 → 折叠方案 → 递归组合。
+    前五个是 Groth16 / PLONK 的完整链路，后四个是现代方案的分支。
+  </div>
+  <div class="grid">
+    <a class="item" href="02-01-arithmetization.html">
+      <span class="no">02 · 01</span><h3>算术化</h3><span class="en">Arithmetization</span>
+      <p>把程序改写成只含加法和乘法的方程组。R1CS 与 PLONKish 的完整推导。</p>
+      <span class="foot"><span>≈ 20 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="02-02-polynomial-commitments.html">
+      <span class="no">02 · 02</span><h3>多项式承诺</h3><span class="en">Polynomial Commitments</span>
+      <p>KZG / FRI / IPA 三种方案。为什么一个多项式能压成 48 字节。</p>
+      <span class="foot"><span>≈ 18 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="02-03-lookup-arguments.html">
+      <span class="no">02 · 03</span><h3>查找论证</h3><span class="en">Lookup Arguments</span>
+      <p>「这个值属于这张表」。把 2¹⁶ 次范围检查压成一次查表。</p>
+      <span class="foot"><span>≈ 16 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="02-04-permutation-arguments.html">
+      <span class="no">02 · 04</span><h3>置换论证</h3><span class="en">Permutation Arguments</span>
+      <p>「这两个格子是同一个变量」。copy constraints 的数学形式。</p>
+      <span class="foot"><span>≈ 15 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="02-05-fiat-shamir.html">
+      <span class="no">02 · 05</span><h3>Fiat–Shamir</h3><span class="en">Fiat–Shamir Transform</span>
+      <p>用哈希替代验证者的随机挑战。交互式协议如何变成一条消息。</p>
+      <span class="foot"><span>≈ 14 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="02-06-folding-schemes.html">
+      <span class="no">02 · 06</span><h3>折叠方案</h3><span class="en">Folding Schemes</span>
+      <p>Nova 的核心：把两个实例折成一个，避免逐层递归的开销。</p>
+      <span class="foot"><span>≈ 16 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="02-07-zero-knowledge.html">
+      <span class="no">02 · 07</span><h3>零知识变换</h3><span class="en">Zero-Knowledge Transforms</span>
+      <p>模拟器与盲化。为什么「加个随机数」就能证明零知识。</p>
+      <span class="foot"><span>≈ 15 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="02-08-proof-systems.html">
+      <span class="no">02 · 08</span><h3>证明系统</h3><span class="en">Proof Systems</span>
+      <p>Groth16 / PLONK / STARK 的构造差异，以及三个群元素为什么够。</p>
+      <span class="foot"><span>≈ 20 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="02-09-recursion.html">
+      <span class="no">02 · 09</span><h3>递归组合</h3><span class="en">Recursion &amp; IVC</span>
+      <p>证明去验证另一个证明。增量可验证计算与证明聚合。</p>
+      <span class="foot"><span>≈ 16 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="02-10-sumcheck.html">
+      <span class="no">02 · 10</span><h3>Sumcheck 协议</h3><span class="en">Sumcheck &amp; GKR</span>
+      <p>逐变量消元。Spartan、Lasso、Binius 与几乎所有 zkVM 的共同底座。</p>
+      <span class="foot"><span>≈ 16 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="02-11-range-proofs.html">
+      <span class="no">02 · 11</span><h3>范围证明</h3><span class="en">Range Proofs</span>
+      <p>证明数值落在区间内而不泄露它。Bulletproofs 的内积论证。</p>
+      <span class="foot"><span>≈ 15 min</span><span class="arrow">→</span></span>
+    </a>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">03</span><h2>工程实现</h2></div>
+  <p class="sec-desc">
+    这一层回答「怎么让它真的跑起来」。没有一件是纯密码学问题，但每一件都能让项目失败 ——
+    尤其是电路审计，它是 ZKP 领域唯一不能省的成本。
+  </p>
+  <div class="grid">
+    <a class="item" href="03-01-circuit-dsls.html">
+      <span class="no">03 · 01</span><h3>电路 DSL</h3><span class="en">Circuit DSLs</span>
+      <p>Circom / Noir / Cairo / Halo2。约束怎么写，工具链怎么串。</p>
+      <span class="foot"><span>≈ 15 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="03-02-proving-backends.html">
+      <span class="no">03 · 02</span><h3>证明后端</h3><span class="en">Proving Backends</span>
+      <p>arkworks / gnark / halo2 / plonky3。选型时该看哪几个指标。</p>
+      <span class="foot"><span>≈ 14 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="03-03-trusted-setup.html">
+      <span class="no">03 · 03</span><h3>可信设置仪式</h3><span class="en">Trusted Setup Ceremonies</span>
+      <p>Powers of Tau 怎么跑，toxic waste 怎么销毁，1-of-N 怎么成立。</p>
+      <span class="foot"><span>≈ 16 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="03-04-aggregation.html">
+      <span class="no">03 · 04</span><h3>递归与聚合</h3><span class="en">Recursion &amp; Aggregation</span>
+      <p>把一千个证明合成一个。工程上比理论上更难的部分。</p>
+      <span class="foot"><span>≈ 15 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="03-05-hardware.html">
+      <span class="no">03 · 05</span><h3>硬件加速</h3><span class="en">Hardware Acceleration</span>
+      <p>MSM 与 NTT 是全部瓶颈。GPU、FPGA、ASIC 各自能提速多少。</p>
+      <span class="foot"><span>≈ 14 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="03-06-circuit-auditing.html">
+      <span class="no">03 · 06</span><h3>电路审计</h3><span class="en">Circuit Auditing</span>
+      <p>约束不足是头号杀手。形式化验证、差分测试、模糊测试怎么做。</p>
+      <span class="foot"><span>≈ 16 min</span><span class="arrow">→</span></span>
+    </a>
+    <a class="item" href="03-07-zkvm.html">
+      <span class="no">03 · 07</span><h3>zkVM 与 zkEVM</h3><span class="en">zkVM &amp; zkEVM</span>
+      <p>把整个虚拟机做成电路。trace、内存一致性、两条路线的取舍。</p>
+      <span class="foot"><span>≈ 18 min</span><span class="arrow">→</span></span>
+    </a>
+  </div>
+</section>
+
+<footer>
+  ZKP 技术图谱 · 33 modules<br>
+  每个模块自成一体，也可以按 00 → 01 → 02 → 03 顺序读。<br>
+  公式统一采用「先给形式、再逐个解释符号、最后给可手算的例子」的写法。<br>
+  零基础从 00 层开始；只缺符号的话，直接跳 00 · 05。
+</footer>
+
+</div>
+</body>
+</html>

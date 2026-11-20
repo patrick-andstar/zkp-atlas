@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多项式承诺 · KZG / FRI / IPA | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">多项式承诺</div>
+  <div class="side-s">02 · Polynomial Commitments</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>要解决的问题</a>
+    <a href="#s2"><span>2</span>直觉：上锁的盒子</a>
+    <a href="#s3"><span>3</span>两个必须的性质</a>
+    <a href="#s4"><span>4</span>KZG：四个步骤</a>
+    <a href="#s5"><span>5</span>为什么 τ 不能泄露</a>
+    <a href="#s6"><span>6</span>FRI：哈希路线</a>
+    <a href="#s7"><span>7</span>IPA：内积路线</a>
+    <a href="#s8"><span>8</span>三者对比</a>
+    <a href="#s9"><span>9</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="02-01-arithmetization.html">← 上一模块 · 算术化</a>
+    <a href="02-03-lookup-arguments.html">下一模块 · 查找论证 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>要解决的问题</a></li>
+      <li><a href="#s2"><span>2</span>直觉</a></li>
+      <li><a href="#s3"><span>3</span>两个性质</a></li>
+      <li><a href="#s4"><span>4</span>KZG 四步</a></li>
+      <li><a href="#s5"><span>5</span>为什么 τ 不能泄露</a></li>
+      <li><a href="#s6"><span>6</span>FRI</a></li>
+      <li><a href="#s7"><span>7</span>IPA</a></li>
+      <li><a href="#s8"><span>8</span>三者对比</a></li>
+      <li><a href="#s9"><span>9</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>02 证明构造</span><span>/</span><b>02 · 02</b></div>
+
+  <header>
+    <h1>多项式承诺：把一整个多项式锁进 48 字节</h1>
+    <p class="tagline">
+      上一模块把电路变成了多项式恒等式。但多项式有几万项，直接发给验证者等于没压缩。
+      多项式承诺解决的就是这件事：<strong>用一个固定大小的值代表整个多项式，并且能证明它在某点的取值。</strong>
+    </p>
+    <div class="meta">
+      <span class="hot">核心模块</span>
+      <span>≈ 18 min</span>
+      <span>难度 4 / 5</span>
+      <span>前置：椭圆曲线 · 配对</span>
+      <span>后续：证明系统</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      假设你是证明者，手里有一个一万次的多项式 <code>p(x)</code>。你要让验证者相信两件事：
+      ① 你承诺的确实是这个 <code>p</code>，之后不能偷偷换；② <code>p(z) = v</code> 这个值是对的。
+    </p>
+    <p>最笨的办法是把一万个系数全发过去。验证者自己算 <code>p(z)</code> —— 这需要传输 32 KB，计算一万次乘加。</p>
+    <p>
+      而 SNARK 的目标是：证明 200 字节、验证 3 毫秒。所以必须有一种机制，
+      让「多项式」这个对象可以像哈希值一样被固定住、被引用、被验证。
+    </p>
+
+    <h3>它在流水线的哪个位置</h3>
+    <p>
+      <a href="02-01-arithmetization.html">算术化</a>产出的是 QAP 恒等式：
+      <code>P(x) = h(x)·Z(x)</code>。要验证这个等式，验证者需要在随机点 <code>z</code> 上取
+      <code>P(z)</code>、<code>h(z)</code>、<code>Z(z)</code> 的值。
+      但 <code>P</code> 的系数里含私密见证 —— 不能直接给。
+    </p>
+    <p>
+      于是证明者对这些多项式做<strong>承诺</strong>，然后证明「在 z 点，这些承诺对应的取值满足那个恒等式」。
+      多项式承诺就是这套「可验证取值」的机制。
+    </p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：把多项式锁进盒子，钥匙是「某个点的取值」</h2>
+    <p>
+      想象你把多项式 <code>p</code> 装进一个透明但锁死的盒子。盒子外面贴着一个标签 <code>C</code>，
+      这个标签由 <code>p</code> 唯一决定，但看不出 <code>p</code> 长什么样。
+    </p>
+    <p>
+      现在有人问：「<code>p(7)</code> 是多少？」你不能打开盒子，但你可以出示一张<strong>收据</strong>，
+      证明「盒子里的东西在 7 处确实等于 42」。收据很小，验证者看一眼就能确认，
+      而且无法伪造 —— 除非他能换掉盒子里的东西。
+    </p>
+    <div class="fml">
+      承诺 <em>C</em> &nbsp;+&nbsp; 打开证明 π &nbsp;→&nbsp; 验证者相信 <em>p</em>(<em>z</em>) = <em>v</em>
+      <span class="lbl">C 固定「是哪个多项式」，π 固定「这一点的值」</span>
+    </div>
+    <p>
+      关键在于：<strong>同一份承诺只能对应一个多项式</strong>。如果证明者能对同一个 <code>C</code>
+      给出两个不同的 <code>p(z)</code>，整个系统立刻崩塌。
+    </p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>两个必须的性质（而且不能同时做到完美）</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">性质</th><th>含义</th><th style="width:260px">如果缺失</th></tr></thead>
+        <tbody>
+          <tr><td><strong>隐藏性</strong><br><span style="font-size:12px;color:var(--ink3)">hiding</span></td>
+            <td>承诺 <code>C</code> 不泄露 <code>p</code> 的任何系数信息</td>
+            <td>验证者能反推出见证，零知识性质直接失效</td></tr>
+          <tr><td><strong>绑定性</strong><br><span style="font-size:12px;color:var(--ink3)">binding</span></td>
+            <td>给定 <code>C</code>，无法找到两个不同的多项式都能「打开」成功</td>
+            <td>证明者可以事后换多项式，伪造任意证明</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么两者不能同时是「统计安全」</span>
+        <p>
+          这是一个通用结论：任何承诺方案，都无法同时做到「统计隐藏」和「统计绑定」。
+          因为如果 <code>C</code> 完全不包含信息，那它必然对应多个可能的原像 —— 绑定性就没了。
+          实践中必须选一边：<strong>计算绑定 + 统计隐藏</strong>（KZG、Pedersen）是最常见的组合。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>KZG：四个步骤，两个公式</h2>
+    <p class="lead">
+      KZG 出自 Kate、Zaverucha、Goldberg 2010 年的论文。它的证明只有一个群元素（32–48 字节），
+      验证只要两次配对。代价是需要可信设置。
+    </p>
+
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>Setup：生成 τ 的幂</h4>
+        <p>随机取一个秘密 <code>τ ∈ 𝔽<sub>p</sub></code>，计算并公开：</p>
+        <div class="fml" style="font-size:13px">
+          [τ<sup>0</sup>]₁, [τ<sup>1</sup>]₁, …, [τ<sup>d</sup>]₁ &nbsp;&nbsp;和&nbsp;&nbsp; [τ]₂
+          <span class="lbl">[x]₁ 表示「把标量 x 映射到 G1 群上的点」；d 是支持的最大多项式次数</span>
+        </div>
+        <p><strong>然后必须把 τ 彻底销毁。</strong>这是整个方案唯一的信任假设。</p>
+      </div>
+
+      <div class="st">
+        <div class="d">2</div>
+        <h4>Commit：承诺</h4>
+        <p>给定 <code>p(x) = Σ<sub>i</sub> p<sub>i</sub>x<sup>i</sup></code>，承诺是：</p>
+        <div class="fml">
+          <em>C</em> = [ <em>p</em>(τ) ]₁ = Σ<sub>i</sub> <em>p</em><sub>i</sub> · [τ<sup>i</sup>]₁
+          <span class="lbl">本质是把「求值」搬到指数上，用椭圆曲线加法代替域乘法</span>
+        </div>
+        <p>
+          注意这里发生了什么：证明者<strong>不知道 τ</strong>，但他能用公开的 <code>[τ<sup>i</sup>]₁</code>
+          线性组合出 <code>[p(τ)]₁</code>。这就是「在不知道秘密的情况下计算秘密的函数值」。
+        </p>
+      </div>
+
+      <div class="st">
+        <div class="d">3</div>
+        <h4>Open：证明某点的取值</h4>
+        <p>要证明 <code>p(z) = v</code>，先构造商多项式：</p>
+        <div class="fml">
+          <em>q</em>(x) = ( <em>p</em>(x) − <em>v</em> ) / ( x − <em>z</em> )
+          <span class="lbl">因为 p(z) = v，分子在 x=z 处为零，所以一定能整除，q 是个正常的多项式</span>
+        </div>
+        <p>然后发送打开证明 <code>π = [q(τ)]₁</code>。就一个群元素。</p>
+      </div>
+
+      <div class="st">
+        <div class="d">4</div>
+        <h4>Verify：两次配对</h4>
+        <p>验证者手上只有 <code>C</code>、<code>π</code>、<code>z</code>、<code>v</code>，检查：</p>
+        <div class="fml">
+          <em>e</em>( <em>C</em> − [<em>v</em>]₁ , [1]₂ ) <span class="op">=</span> <em>e</em>( π , [τ]₂ − [<em>z</em>]₂ )
+          <span class="lbl">e 是双线性配对；[v]₁ 和 [z]₂ 都可以由公开参数直接算出</span>
+        </div>
+      </div>
+    </div>
+
+    <h3>为什么这个等式成立</h3>
+    <p>把 <code>C = [p(τ)]₁</code>、<code>π = [q(τ)]₁</code> 代进去，两边在指数上分别是：</p>
+    <div class="fml" style="font-size:13px;text-align:left">
+      左边：<em>p</em>(τ) − <em>v</em><br>
+      右边：<em>q</em>(τ) · ( τ − <em>z</em> )
+    </div>
+    <p>
+      而由 <code>q(x) = (p(x) − v)/(x − z)</code> 移项即得
+      <code>p(τ) − v = q(τ)·(τ − z)</code>。两边相等，所以配对等式成立。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">这一步的漂亮之处</span>
+        <p>
+          验证者<strong>从头到尾没有见过任何系数</strong>，也没有做任何与次数相关的运算。
+          不管多项式是一万次还是一亿次，验证都只是两次配对 —— 常数时间。
+        </p>
+      </div>
+    </div>
+
+    <h3>符号速查</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:90px">符号</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td><code>τ</code></td><td>可信设置生成的秘密标量，必须销毁。所有安全性都建立在「无人知道它」之上。</td></tr>
+          <tr><td><code>[x]₁</code></td><td>标量 x 在 G1 群上的像，即 <code>x·G</code>，G 是 G1 的生成元。</td></tr>
+          <tr><td><code>[x]₂</code></td><td>同上，但在 G2 群上。配对需要两个不同群的元素。</td></tr>
+          <tr><td><code>e(·,·)</code></td><td>双线性配对，满足 <code>e(aP, bQ) = e(P,Q)<sup>ab</sup></code>。</td></tr>
+          <tr><td><code>d</code></td><td>支持的最大多项式次数。仪式生成 d+1 个 G1 点，d 越大，仪式越久、参数越大。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>为什么 τ 泄露就等于系统崩了</h2>
+    <p>
+      假设攻击者知道了 <code>τ</code>。他可以为<strong>任意</strong>多项式构造承诺，
+      更致命的是：他能对同一个承诺 <code>C</code> 打开出<strong>任意</strong>值。
+    </p>
+    <h4>攻击怎么进行</h4>
+    <p>
+      想在点 <code>z</code> 声称 <code>p(z) = v'</code>（而真实值是 <code>v</code>）。他需要构造
+      <code>π'</code> 让验证等式成立。由于知道 <code>τ</code>，他可以直接算出需要的标量：
+    </p>
+    <div class="fml" style="font-size:13px">
+      π' = [ ( <em>p</em>(τ) − <em>v</em>' ) / ( τ − <em>z</em> ) ]₁
+      <span class="lbl">只要 τ ≠ z，这个除法总能算出来 —— 而 τ 是随机值，几乎必然 ≠ z</span>
+    </div>
+    <p>
+      于是他可以让任何命题通过验证，且<strong>不留下任何痕迹</strong>。验证者无法区分真证明和假证明。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这不是「最好删掉」，是「必须删掉」</span>
+        <p>
+          而且删除必须发生在<strong>生成参数的那个进程里</strong>，不能「算完写到文件再删」——
+          中间任何一刻的磁盘快照、内存转储、swap 文件都可能导致泄露。
+          这就是为什么真实仪式要用 MPC 多方接力，把风险摊薄到「N 个人里只要 1 个诚实」。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>FRI：不用秘密的路线</h2>
+    <p class="lead">
+      FRI（Fast Reed–Solomon Interactive Oracle Proof of Proximity）走的是另一条路：
+      完全不碰椭圆曲线和配对，只用哈希函数。
+    </p>
+    <h3>核心思想：如果它是低次多项式，折叠后仍然是低次</h3>
+    <p>
+      把多项式 <code>p(x)</code> 拆成偶数项和奇数项：
+    </p>
+    <div class="fml">
+      <em>p</em>(x) = <em>p</em><sub>even</sub>(x²) + x · <em>p</em><sub>odd</sub>(x²)
+      <span class="lbl">拆完后，问题规模减半：原来次数是 d，现在两个子多项式次数都是 d/2</span>
+    </div>
+    <p>
+      引入随机挑战 <code>α</code>，构造折叠后的新多项式：
+    </p>
+    <div class="fml">
+      <em>p</em>'(x) = <em>p</em><sub>even</sub>(x) + α · <em>p</em><sub>odd</sub>(x)
+      <span class="lbl">次数减半。重复 log d 次，最后变成一个常数，直接发过去就行</span>
+    </div>
+    <p>
+      验证者每轮只需要检查「新多项式的取值和旧多项式在对应点的取值一致」。所有检查都是哈希运算。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:140px">维度</th><th>KZG</th><th>FRI</th></tr></thead>
+        <tbody>
+          <tr><td>可信设置</td><td>需要</td><td><strong>不需要</strong></td></tr>
+          <tr><td>抗量子</td><td>否</td><td><strong>是</strong></td></tr>
+          <tr><td>证明大小</td><td>~48 字节</td><td>几十到几百 KB</td></tr>
+          <tr><td>验证开销</td><td>2 次配对（~1ms）</td><td>O(log² d) 次哈希</td></tr>
+          <tr><td>依赖假设</td><td>离散对数 + 配对</td><td>仅哈希抗碰撞</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>IPA：只要离散对数，不要配对</h2>
+    <p>
+      Inner Product Argument 用 Pedersen 承诺：<code>C = ⟨p, G⟩</code>，其中 <code>G</code> 是一组群元素。
+      打开时，证明者证明「我知道系数 <code>p</code>，且 <code>⟨p, G⟩ = C</code> 且 <code>⟨p, b⟩ = v</code>」。
+    </p>
+    <p>
+      它通过递归折半，把长度为 n 的内积论证压缩到 O(log n) 个群元素。
+      不需要可信设置，也不需要配对 —— 只需要离散对数难解。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">代价在哪</span>
+        <p>
+          验证时间是 <code>O(n)</code>（或经过预处理的 <code>O(log n)</code>，但常数很大）。
+          所以 IPA 适合「证明者多、验证者少、且不需要极短验证」的场景，比如 Halo2 的递归电路内部。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>三者对比：没有最优，只有取舍</h2>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th style="width:110px">维度</th><th>KZG</th><th>FRI</th><th>IPA</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>证明大小</strong></td><td>32 B（BN254）<br>48 B（BLS12-381）</td><td>50–200 KB</td><td>~1 KB（log n 个点）</td></tr>
+          <tr><td><strong>验证时间</strong></td><td>常数，2 次配对</td><td>O(log² d) 哈希</td><td>O(n) 或 O(log n)</td></tr>
+          <tr><td><strong>可信设置</strong></td><td>需要（通用，可复用）</td><td>不需要</td><td>不需要</td></tr>
+          <tr><td><strong>抗量子</strong></td><td>否</td><td>是</td><td>否</td></tr>
+          <tr><td><strong>数学假设</strong></td><td>q-SDH + 配对</td><td>哈希抗碰撞</td><td>离散对数</td></tr>
+          <tr><td><strong>典型使用者</strong></td><td>Groth16、PLONK、EIP-4844</td><td>STARK、zkSync Boojum</td><td>Bulletproofs、Halo2</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>怎么选</h3>
+    <ul>
+      <li><strong>链上验证、gas 敏感</strong> → KZG。一个 G1 点就能当证明（BN254 上 32 字节，BLS12-381 上 48 字节），在以太坊上只要几万 gas。</li>
+      <li><strong>要抗量子、不想搞仪式</strong> → FRI。接受证明大几十倍。</li>
+      <li><strong>要在电路内部验证承诺</strong>（递归场景）→ IPA。配对在电路里太贵。</li>
+    </ul>
+  </section>
+
+  <section id="s9">
+    <h2><span class="n">09</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>多项式承诺 = 常数大小的「多项式指纹」+ 可验证的「某点取值」。</li>
+        <li>KZG 的承诺是 <code>[p(τ)]₁</code>，打开证明是 <code>[(p(x)−v)/(x−z)]₁</code>。</li>
+        <li>验证等式 <code>e(C−[v]₁,[1]₂)=e(π,[τ]₂−[z]₂)</code> 在指数上等价于整除关系。</li>
+        <li>隐藏性与绑定性不能同时统计安全，必须选一边。</li>
+        <li>FRI 用折叠降次，只要哈希；IPA 用内积递归，只要离散对数。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「承诺就是哈希，把多项式哈希一下就行。」</span></div>
+      <div class="r"><i>✓</i><div>普通哈希不能证明「某点取值」。你需要的是<strong>同态</strong>结构：
+        <code>[p(τ)]</code> 必须能由系数线性组合出来。哈希是一团乱码，没有这种代数性质。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「KZG 只要把 τ 删了就没风险了。」</span></div>
+      <div class="r"><i>✓</i><div>删除的<strong>时机和方式</strong>才是风险所在。内存残留、swap、进程快照都可能泄露。
+        所以真实项目用 MPC 仪式，把单点故障变成「1-of-N 诚实即可」。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「FRI 证明大，所以它更差。」</span></div>
+      <div class="r"><i>✓</i><div>它换来了<strong>无信任设置 + 抗量子</strong>。在 L2 场景里，几十 KB 的证明分摊到几千笔交易上，
+        每笔只多几十字节 —— 代价可以忽略，收益却是结构性的。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「一个承诺只能打开一次。」</span></div>
+      <div class="r"><i>✓</i><div>KZG 可以对同一个承诺在<strong>任意多个点</strong>分别打开，每次产生一个独立的
+        <code>π</code>。但每次打开都会泄漏「该点的取值」，所以如果要证明多个点又不泄露多项式，
+        需要额外的盲化，或者用批量打开把多个点合并成一次。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="02-01-arithmetization.html">
+      <span class="pl">← 上一模块 · 02 · 01</span>
+      <span class="pt">算术化：把程序变成乘法等式</span>
+    </a>
+    <a href="02-03-lookup-arguments.html">
+      <span class="pl">下一模块 · 02 · 03</span>
+      <span class="pt">查找论证：把范围检查压成一次查表 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

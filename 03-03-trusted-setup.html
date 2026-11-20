@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>可信设置仪式 · Trusted Setup Ceremonies | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">可信设置仪式</div>
+  <div class="side-s">03 · Trusted Setup Ceremonies</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>为什么要有仪式</a>
+    <a href="#s2"><span>2</span>参与者要做什么</a>
+    <a href="#s3"><span>3</span>1-of-N 怎么成立</a>
+    <a href="#s4"><span>4</span>怎么验证仪式</a>
+    <a href="#s5"><span>5</span>真实案例</a>
+    <a href="#s6"><span>6</span>风险清单</a>
+    <a href="#s7"><span>7</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="03-02-proving-backends.html">← 上一模块 · 证明后端</a>
+    <a href="03-04-aggregation.html">下一模块 · 递归与聚合 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>为什么要有仪式</a></li>
+      <li><a href="#s2"><span>2</span>参与者做什么</a></li>
+      <li><a href="#s3"><span>3</span>1-of-N</a></li>
+      <li><a href="#s4"><span>4</span>怎么验证</a></li>
+      <li><a href="#s5"><span>5</span>真实案例</a></li>
+      <li><a href="#s6"><span>6</span>风险清单</a></li>
+      <li><a href="#s7"><span>7</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>03 工程实现</span><span>/</span><b>03 · 03</b></div>
+
+  <header>
+    <h1>可信设置仪式：怎么让一群陌生人共同销毁一个秘密</h1>
+    <p class="tagline">
+      KZG 需要一组长得像 <code>[τ⁰]₁, [τ¹]₁, …</code> 的公共参数，而 τ 必须没人知道。
+      问题是：总得有人生成它。仪式解决的就是这个矛盾 ——
+      把「相信一个人」变成「相信八十个人里至少有一个没撒谎」。
+    </p>
+    <div class="meta">
+      <span class="hot">信任模型核心</span>
+      <span>≈ 16 min</span>
+      <span>难度 3 / 5</span>
+      <span>前置：多项式承诺</span>
+      <span>产出：可复用的 .ptau</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>为什么必须有这么一场仪式</h2>
+    <p class="lead">
+      KZG 的承诺是 <code>C = [p(τ)]₁</code>。要让这个式子有意义，必须有人算出
+      <code>[τ⁰]₁, [τ¹]₁, …, [τᵈ]₁</code> —— 而算这些的前提是<strong>知道 τ</strong>。
+    </p>
+    <p>矛盾出现了：</p>
+    <ul>
+      <li>算参数的人必须知道 τ；</li>
+      <li>但任何人都不能知道 τ，否则能伪造证明。</li>
+    </ul>
+    <p>
+      解决办法是：<strong>算完立刻销毁</strong>。但「我删了」这句话没有任何说服力 ——
+      内存快照、swap、磁盘残留、甚至一张照片都可能是泄露渠道。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">仪式的核心思路：把风险切成 N 份</span>
+        <p>
+          不让一个人生成 τ，而让 N 个人<strong>接力</strong>。每个人只贡献自己那一段随机性，
+          然后销毁。最终 <code>τ = τ₁·τ₂·…·τₙ</code>。
+          只要有任何一个人真的销毁了，就没有人知道完整的 τ。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>参与者视角：一次完整操作</h2>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>下载上一轮的参数</h4>
+        <p>从公开地址取回 <code>.ptau</code> 文件，并核对它的哈希与上一轮公布的一致。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>生成自己的熵</h4>
+        <p>
+          用本地硬件随机数、键盘敲击、甚至掷骰子，生成一段 <code>τ<sub>i</sub></code>。
+          关键是<strong>不能在任何联网设备上生成</strong>。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>在隔离环境里更新参数</h4>
+        <p>
+          用离线机器（或者干脆断网）跑仪式程序，把 <code>τ<sub>i</sub></code> 混入参数。
+          计算过程会持续几分钟到几小时，取决于参数规模。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">4</div>
+        <h4>发布新参数和证明</h4>
+        <p>
+          输出新的 <code>.ptau</code> 和一个 <code>attestation</code>（证明这次更新正确执行）。
+          上传到公开地址。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">5</div>
+        <h4>销毁</h4>
+        <p>
+          <strong>这一步是全部安全性所在。</strong>
+          关机、拔电、物理销毁存储介质，或者用新随机数据覆写整个磁盘。
+          「删文件」不算销毁。
+        </p>
+      </div>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">销毁失败的几种真实方式</span>
+        <p>
+          ① 用了带休眠功能的笔记本，内存被写进磁盘；<br>
+          ② 虚拟机快照被云厂商保留；<br>
+          ③ 程序把 τ 写进了日志文件；<br>
+          ④ 生成熵的过程中有屏幕录制或摄像头。
+        </p>
+        <p>这就是为什么严肃的仪式要求「专用机器 + 物理销毁」。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>1-of-N 的数学：为什么这样就安全了</h2>
+    <p>每一轮的操作本质上是把参数「乘上」自己的秘密：</p>
+    <div class="fml" style="font-size:13px">
+      [ τ<sup><em>k</em></sup> ]<sub>1</sub> &nbsp;⟶&nbsp; [ ( τ · τ<sub><em>i</em></sub> )<sup><em>k</em></sup> ]<sub>1</sub>
+      <span class="lbl">第 i 个参与者把自己那一段乘进去，得到新的一组参数</span>
+    </div>
+    <p>经过 N 轮之后：</p>
+    <div class="fml">
+      τ<sub>final</sub> = τ<sub>1</sub> · τ<sub>2</sub> · ⋯ · τ<sub><em>N</em></sub>
+      <span class="lbl">每个参与者只知道自己的 τᵢ，以及「别人也乘了东西」这件事</span>
+    </div>
+    <p>
+      关键论证：如果第 <code>i</code> 个参与者诚实地销毁了 <code>τ<sub>i</sub></code>，
+      那么任何人都无法从公开参数中恢复 <code>τ<sub>final</sub></code> ——
+      因为这等价于在不知道一个随机因子的情况下解出乘积。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">攻击者控制的人数</th><th>能否恢复 τ</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>0 个</td><td>不能</td><td>全部诚实</td></tr>
+          <tr><td>N−1 个</td><td><strong>不能</strong></td><td>只要剩 1 个诚实，乘积就未知</td></tr>
+          <tr><td>N 个</td><td>能</td><td>全部串通，安全性归零</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">这就是「1-of-N 信任模型」</span>
+        <p>
+          你不需要信任任何特定的人，只需要相信「这 80 个人里至少有一个不是骗子、
+          而且他的电脑没被入侵」。这个假设比「相信某个公司」弱得多。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>怎么验证一场仪式没被动手脚</h2>
+    <p class="lead">
+      仪式的价值在于<strong>可公开验证</strong>。如果只能「相信组织者」，那它就退化成单点信任。
+    </p>
+    <p>每一轮的 <code>attestation</code> 包含：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">内容</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td>上一轮参数的哈希</td><td>证明「我是基于正确的前序状态算的」</td></tr>
+          <tr><td>本轮参数的哈希</td><td>供下一轮核对</td></tr>
+          <tr><td>配对等式证明</td><td>证明更新确实形如 <code>[τ<sup>k</sup>] → [(ττ<sub>i</sub>)<sup>k</sup>]</code>，而不是随便换了一组点</td></tr>
+          <tr><td>参与者的公钥签名</td><td>绑定身份，事后可追责（虽然无法撤销）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>验证者只需要跑一条命令，就能检查整条链：</p>
+    <pre data-lang="bash"><code>snarkjs powersoftau verify pot28_final.ptau</code></pre>
+    <p>
+      它会逐一验证每一轮的配对等式和哈希链接。任何一轮造假，都会在这里暴露。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">但验证不了「销毁」</span>
+        <p>
+          这是仪式的根本局限：<strong>数学只能证明「参数算对了」，不能证明「秘密删掉了」</strong>。
+          后者是一个物理/管理问题，只能靠流程设计（隔离机器、多人见证、物理销毁）来降低风险。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>真实案例：三次值得记住的仪式</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">仪式</th><th style="width:90px">时间</th><th>规模与结果</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Zcash Sprout</strong></td><td>2016</td>
+            <td>6 人参与。后来发现实现有问题，理论上 toxic waste 可能被恢复，促成了 Sapling 重做</td>
+          </tr>
+          <tr>
+            <td><strong>Zcash Sapling</strong></td><td>2017</td>
+            <td>90+ 人，使用改进后的协议（BCTV14 漏洞已修复）。成为行业标杆</td>
+          </tr>
+          <tr>
+            <td><strong>Perpetual Powers of Tau</strong></td><td>2019 起</td>
+            <td>80+ 轮，产出支持到 <code>2²⁸</code> 约束的通用参数，被大量项目复用</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Sprout 的故事尤其值得记：它的参数生成用了当时最先进的方案，
+      但后来发现「参数格式本身」允许在某些条件下恢复 τ。
+      <strong>这说明仪式的安全性不只取决于参与者，还取决于协议的数学实现。</strong>
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">一个反直觉的事实</span>
+        <p>
+          参与者越多，仪式越慢、越难组织，但安全性提升是<strong>边际递减</strong>的：
+          从 1 人到 10 人，风险降了 10 倍；从 80 人到 90 人，几乎没区别。
+          所以主流仪式规模停在几十到一百人，不是技术限制。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>风险清单：可能出问题的地方</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:160px">风险</th><th>后果</th><th style="width:200px">怎么降低</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>销毁不彻底</td><td>参与者可伪造任意证明</td><td>专用离线机器 + 物理销毁 + 多人见证</td>
+          </tr>
+          <tr>
+            <td>实现有 bug</td><td>秘密以非预期方式泄漏</td><td>使用经过审计的客户端；事后公开源码</td>
+          </tr>
+          <tr>
+            <td>参与者被胁迫</td><td>同上</td><td>匿名参与（只公布公钥）；分散地理分布</td>
+          </tr>
+          <tr>
+            <td>「假装参与」</td><td>实际只有少数人真正贡献</td><td>公开 transcript + 独立验证</td>
+          </tr>
+          <tr>
+            <td>参数被替换</td><td>验证密钥与电路不匹配</td><td>核对最终哈希 + 重新编译电路比对</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>使用者该怎么核查一个项目的仪式</h3>
+    <ol>
+      <li>最终 <code>.ptau</code> 的哈希是否公开、是否被多个独立方复现？</li>
+      <li>每一轮的 attestation 是否可下载、能否通过 <code>verify</code>？</li>
+      <li>参与名单是否公开（哪怕只有公钥）？有没有独立机构参与？</li>
+      <li>电路源码是否开源，能否自己编译出同样的 <code>r1cs</code>？</li>
+    </ol>
+    <p>四条里缺任何一条，你都在信任一群没有露面的陌生人。</p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>可信设置要生成 τ 的幂，而 τ 必须被销毁。</li>
+        <li>MPC 仪式把 τ 拆成 <code>τ₁·τ₂·…·τₙ</code>，只要一个诚实就安全。</li>
+        <li>参与者流程：下载 → 生成熵 → 更新 → 发布 → <strong>物理销毁</strong>。</li>
+        <li>transcript 可以验证「算得对」，但验证不了「删得干净」。</li>
+        <li>Zcash Sapling（90 人）和 Perpetual Powers of Tau（80+ 轮）是两个标杆。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「有可信设置就说明这个项目有后门。」</span></div>
+      <div class="r"><i>✓</i><div>可信设置是<strong>公开宣称的信任假设</strong>，后门是隐藏的。
+        真正该问的是：仪式是否可验证、参与者是否分散、参数是否被复用审计。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「只要参与者足够多就一定安全。」</span></div>
+      <div class="r"><i>✓</i><div>如果所有人用的都是同一个有 bug 的客户端，人再多也没用。
+        <strong>实现正确性优先于人数。</strong></div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「Groth16 的仪式一次就够，所有电路通用。」</span></div>
+      <div class="r"><i>✓</i><div>Groth16 是<strong>电路专用</strong>的：改一行电路就要重跑 phase 2。
+        只有 PLONK 那类通用设置才能一次仪式服务所有电路。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「用了 STARK 就完全不用信任任何人。」</span></div>
+      <div class="r"><i>✓</i><div>STARK 不需要可信设置，但仍需信任<strong>哈希函数</strong>和<strong>实现正确性</strong>。
+        「透明」指的是参数生成透明，不是「零信任」。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="03-02-proving-backends.html">
+      <span class="pl">← 上一模块 · 03 · 02</span>
+      <span class="pt">证明后端：arkworks / gnark / halo2 怎么选</span>
+    </a>
+    <a href="03-04-aggregation.html">
+      <span class="pl">下一模块 · 03 · 04</span>
+      <span class="pt">递归与聚合：把一千个证明合成一个 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

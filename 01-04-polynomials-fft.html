@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多项式与 FFT · Polynomials &amp; NTT | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">多项式与 FFT</div>
+  <div class="side-s">01 · Polynomials &amp; FFT</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这个模块要解决什么问题</a>
+    <a href="#s2"><span>2</span>两种表示法</a>
+    <a href="#s3"><span>3</span>插值</a>
+    <a href="#s4"><span>4</span>NTT 做了什么</a>
+    <a href="#s5"><span>5</span>单位根与 2-adicity</a>
+    <a href="#s6"><span>6</span>蝶形运算</a>
+    <a href="#s7"><span>7</span>手算示例</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="00-04-roots.html">← 00 · 04 单位根（本页前置）</a>
+    <a href="01-03-pairings.html">上一模块 · 双线性配对</a>
+    <a href="01-05-coding-theory.html">下一模块 · 编码理论 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>这个模块要解决什么问题</a></li>
+      <li><a href="#s2"><span>2</span>两种表示法</a></li>
+      <li><a href="#s3"><span>3</span>插值</a></li>
+      <li><a href="#s4"><span>4</span>NTT</a></li>
+      <li><a href="#s5"><span>5</span>单位根</a></li>
+      <li><a href="#s6"><span>6</span>蝶形运算</a></li>
+      <li><a href="#s7"><span>7</span>手算示例</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>01 数学基础</span><span>/</span><b>01 · 04</b></div>
+
+  <header>
+    <h1>多项式与 FFT：ZKP 真正在算的东西</h1>
+    <p class="tagline">
+      算术化把电路变成了约束，QAP 把它变成了多项式恒等式，KZG 承诺的也是多项式。
+      整个 ZKP 的算力，八成花在「多项式求值」和「点值 ↔ 系数转换」上。
+      这一页讲清楚这两件事为什么这么快、以及为什么快不了。
+    </p>
+    <div class="meta">
+      <span class="hot">性能核心</span>
+      <span>≈ 15 min</span>
+      <span>难度 3 / 5</span>
+      <span>前置：00 · 04 单位根 · 00 · 03 多项式</span>
+      <span>被用于：QAP · KZG · FRI</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      多项式有一个别的对象没有的性质：<strong>两个不同的 d 次多项式，最多在 d 个点上相等</strong>。
+    </p>
+    <p>这个性质（Schwartz–Zippel 引理的推论）意味着一件事：</p>
+    <div class="fml">
+      「两个多项式完全相同」 &nbsp;≈&nbsp; 「在随机点 z 上取值相同」
+      <span class="lbl">出错概率 ≤ d/p，p ≈ 2²⁵⁴ 时可忽略</span>
+    </div>
+    <p>
+      于是「检查一亿条约束」变成了「检查一个等式在一个点上成立」。
+      这就是 SNARK 从 O(n) 降到 O(1) 的全部秘密。
+    </p>
+    <p>
+      而要做到这一点，必须能在两种表示之间自由切换：
+      <strong>系数形式</strong>（便于做加减乘）和<strong>点值形式</strong>（便于做批量检查）。
+      切换的工具，就是 FFT。
+    </p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>同一个多项式的两种写法</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">表示</th><th>形式</th><th>擅长什么</th><th>不擅长什么</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>系数形式</strong><br><span style="font-size:12px;color:var(--ink3)">coefficient</span></td>
+            <td><code>p(x) = c<sub>0</sub> + c<sub>1</sub>x + … + c<sub>d</sub>x<sup>d</sup></code></td>
+            <td>加法（逐项加）、乘法（卷积）、求导</td>
+            <td>批量求值（每个点 O(d)）</td>
+          </tr>
+          <tr>
+            <td><strong>点值形式</strong><br><span style="font-size:12px;color:var(--ink3)">evaluation</span></td>
+            <td><code>(x<sub>0</sub>,y<sub>0</sub>), (x<sub>1</sub>,y<sub>1</sub>), …</code></td>
+            <td>批量求值（查表 O(1)）、逐点检查</td>
+            <td>加法要逐点加（简单）、乘法要逐点乘（简单）但插值回去很贵</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <strong>关键洞察</strong>：如果我们只在<strong>同一组固定的点</strong>上求值，
+      那么「点值形式下的逐点乘」就等于「系数形式下的多项式乘」——
+      而这正是把「约束的乘积」变成「可以批量检查的形式」所需要的。
+    </p>
+    <div class="fml">
+      ( <em>p</em> · <em>q</em> )( <em>x</em><sub><em>i</em></sub> ) = <em>p</em>(<em>x</em><sub><em>i</em></sub>) · <em>q</em>(<em>x</em><sub><em>i</em></sub>)
+      <span class="lbl">在点值形式下，多项式乘法就是逐点相乘 —— O(n) 而不是 O(n²)</span>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>插值：从点回到系数</h2>
+    <p class="lead">
+      给定 n 个点，唯一确定一个次数小于 n 的多项式。构造它的公式叫拉格朗日插值。
+    </p>
+    <div class="fml" style="font-size:13px">
+      <em>p</em>(x) = Σ<sub><em>i</em></sub> <em>y</em><sub><em>i</em></sub> · <em>L</em><sub><em>i</em></sub>(x) , &nbsp;&nbsp;
+      <em>L</em><sub><em>i</em></sub>(x) = Π<sub><em>j</em>≠<em>i</em></sub> ( x − <em>x</em><sub><em>j</em></sub> ) / ( <em>x</em><sub><em>i</em></sub> − <em>x</em><sub><em>j</em></sub> )
+      <span class="lbl">L_i 是「在第 i 个点上取 1、其余点取 0」的基函数</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:90px">符号</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td><code>y<sub>i</sub></code></td><td>第 i 个点上的目标取值</td></tr>
+          <tr><td><code>L<sub>i</sub>(x)</code></td><td>拉格朗日基多项式，满足 <code>L<sub>i</sub>(x<sub>j</sub>) = 1</code> 当 i=j，否则为 0</td></tr>
+          <tr><td>分母</td><td>常数，只依赖点的位置。预先算好可以复用</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      朴素插值是 <code>O(n²)</code>（每个 <code>L<sub>i</sub></code> 要乘 n 项）。
+      但如果点在单位根上，可以做到 <code>O(n log n)</code> —— 这就是逆 NTT。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">QAP 就是一次插值</span>
+        <p>
+          <a href="02-01-arithmetization.html">算术化</a>里把 R1CS 矩阵的每一列看成「在点 1…m 上的取值」，
+          插值出 <code>A<sub>j</sub>(x)</code>、<code>B<sub>j</sub>(x)</code>、<code>C<sub>j</sub>(x)</code>。
+          这一步的复杂度直接决定证明生成时间。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>NTT：把 O(n²) 变成 O(n log n)</h2>
+    <p class="lead">
+      NTT（Number Theoretic Transform）是 FFT 在有限域上的版本。
+      名字不同，算法结构完全一样，只是把复数单位根换成了域里的单位根。
+    </p>
+    <h3>它算的是什么</h3>
+    <div class="fml" style="font-size:13px">
+      <em>Y</em><sub><em>k</em></sub> = Σ<sub><em>j</em>=0</sub><sup><em>n</em>−1</sup> <em>y</em><sub><em>j</em></sub> · ω<sup><em>jk</em></sup>
+      <span class="lbl">正向 NTT：系数 → 点值；逆向 NTT：点值 → 系数（用 ω⁻¹）</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:90px">符号</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td><code>ω</code></td><td>n 次本原单位根：<code>ω<sup>n</sup> = 1</code>，且 <code>ω<sup>k</sup> ≠ 1</code> 对 <code>0&lt;k&lt;n</code>。</td></tr>
+          <tr><td><code>y<sub>j</sub></code></td><td>输入（系数或点值）</td></tr>
+          <tr><td><code>Y<sub>k</sub></code></td><td>输出（点值或系数）</td></tr>
+          <tr><td><code>n</code></td><td>长度，必须是 2 的幂（为了做蝶形分解）</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>为什么能加速</h3>
+    <p>
+      把求和按奇偶下标拆成两半：
+    </p>
+    <div class="fml" style="font-size:13px">
+      <em>Y</em><sub><em>k</em></sub> = <em>E</em><sub><em>k</em></sub> + ω<sup><em>k</em></sup> · <em>O</em><sub><em>k</em></sub> , &nbsp;&nbsp;
+      <em>Y</em><sub><em>k</em>+<em>n</em>/2</sub> = <em>E</em><sub><em>k</em></sub> − ω<sup><em>k</em></sup> · <em>O</em><sub><em>k</em></sub>
+      <span class="lbl">E 是偶数项的变换，O 是奇数项的变换；两者只算一次，被两个输出复用</span>
+    </div>
+    <p>
+      递归下去，复杂度 <code>T(n) = 2T(n/2) + O(n) = O(n log n)</code>。
+      这就是「蝶形运算」的由来：每个输入被用两次，形状像蝴蝶。
+    </p>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>单位根从哪来：回到 2-adicity</h2>
+    <p>
+      NTT 需要一个 n 次单位根。而 <code>𝔽<sub>p</sub>*</code> 是循环群，阶为 <code>p−1</code>。
+      所以「存在 n 次单位根」等价于「<code>n</code> 整除 <code>p−1</code>」。
+    </p>
+    <div class="fml">
+      <em>p</em> − 1 = 2<sup><em>s</em></sup> · <em>t</em> &nbsp;&nbsp;⟹&nbsp;&nbsp; 支持所有 <em>n</em> ≤ 2<sup><em>s</em></sup> 的 NTT
+      <span class="lbl">s 就是 2-adicity。n 超过 2^s，就没有对应的单位根，NTT 做不了</span>
+    </div>
+    <h3>单位根怎么算</h3>
+    <p>
+      设 <code>g</code> 是 <code>𝔽<sub>p</sub>*</code> 的生成元，那么
+    </p>
+    <div class="fml" style="font-size:13px">
+      ω = <em>g</em><sup>(<em>p</em>−1)/<em>n</em></sup>
+      <span class="lbl">因为 g 的阶是 p−1，升到 (p−1)/n 次方后，阶正好变成 n</span>
+    </div>
+    <p>
+      实际实现会预先算好一张「单位根表」，避免每次重复求幂。
+      这张表的大小等于 <code>n</code>，是证明者内存占用的一部分。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这是电路规模被卡在 2 的幂上的真正原因</span>
+        <p>
+          BN254 的 <code>s ≈ 28</code>，所以单个 NTT 最多处理 <code>2²⁸</code> 个点。
+          更大的电路必须做「分段 NTT」或者换曲线 —— 不是软件优化能解决的。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>蝶形运算：一趟的数据流</h2>
+    <p>以 <code>n = 4</code> 为例，输入 <code>(y₀,y₁,y₂,y₃)</code>，输出 <code>(Y₀,Y₁,Y₂,Y₃)</code>：</p>
+    <div class="fml" style="font-size:12.5px;text-align:left;line-height:2.1">
+      <strong>第一层</strong>（步长 1）：<br>
+      &nbsp;&nbsp;<em>a</em><sub>0</sub> = <em>y</em><sub>0</sub> + <em>y</em><sub>1</sub> &nbsp;&nbsp; <em>a</em><sub>1</sub> = <em>y</em><sub>0</sub> − <em>y</em><sub>1</sub><br>
+      &nbsp;&nbsp;<em>a</em><sub>2</sub> = <em>y</em><sub>2</sub> + <em>y</em><sub>3</sub> &nbsp;&nbsp; <em>a</em><sub>3</sub> = <em>y</em><sub>2</sub> − <em>y</em><sub>3</sub><br>
+      <strong>第二层</strong>（步长 2，乘 ω）：<br>
+      &nbsp;&nbsp;<em>Y</em><sub>0</sub> = <em>a</em><sub>0</sub> + <em>a</em><sub>2</sub> &nbsp;&nbsp; <em>Y</em><sub>2</sub> = <em>a</em><sub>0</sub> − <em>a</em><sub>2</sub><br>
+      &nbsp;&nbsp;<em>Y</em><sub>1</sub> = <em>a</em><sub>1</sub> + ω·<em>a</em><sub>3</sub> &nbsp;&nbsp; <em>Y</em><sub>3</sub> = <em>a</em><sub>1</sub> − ω·<em>a</em><sub>3</sub>
+    </div>
+    <p>
+      总共 <code>n/2 × log₂n = 2 × 2 = 4</code> 次蝶形，每次 1 次乘 + 2 次加减。
+      朴素 DFT 需要 <code>n² = 16</code> 次乘法。规模越大，差距越大。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">n</th><th>朴素 O(n²)</th><th>NTT O(n log n)</th><th>加速比</th></tr></thead>
+        <tbody>
+          <tr><td>2¹⁰ ≈ 1 千</td><td>~100 万</td><td>~1 万</td><td>100×</td></tr>
+          <tr><td>2²⁰ ≈ 100 万</td><td>~10¹²</td><td>~2×10⁷</td><td>5 万×</td></tr>
+          <tr><td>2²⁴ ≈ 1600 万</td><td>~2.8×10¹⁴</td><td>~4×10⁸</td><td>70 万×</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>手算：三点插值</h2>
+    <p>给定三个点 <code>(0,1)</code>、<code>(1,3)</code>、<code>(2,7)</code>，求过它们的二次多项式。</p>
+    <p>观察一下：<code>p(x) = x² + x + 1</code> 刚好满足。</p>
+    <div class="fml" style="font-size:13px">
+      <em>p</em>(0) = 1 &nbsp;✓&nbsp;&nbsp; <em>p</em>(1) = 3 &nbsp;✓&nbsp;&nbsp; <em>p</em>(2) = 7 &nbsp;✓
+    </div>
+    <p>用拉格朗日公式验证一下，先算三个基函数在 <code>x=1</code> 处的值：</p>
+    <div class="fml" style="font-size:12.5px;text-align:left;line-height:2.1">
+      <em>L</em><sub>0</sub>(1) = (1−1)(1−2) / ((0−1)(0−2)) = 0<br>
+      <em>L</em><sub>1</sub>(1) = (1−0)(1−2) / ((1−0)(1−2)) = 1<br>
+      <em>L</em><sub>2</sub>(1) = (1−0)(1−1) / ((2−0)(2−1)) = 0
+    </div>
+    <p>所以 <code>p(1) = 1·0 + 3·1 + 7·0 = 3</code> ✓，和预期一致。</p>
+    <p>
+      这个例子说明基函数的本质：<strong>每个 <code>L<sub>i</sub></code> 只在第 i 个点上「选中」自己</strong>，
+      其余点全为零。所以插值就是「按权重把 y 值拼起来」。
+    </p>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>多项式有两种表示：系数形式（便于算）和点值形式（便于查）。</li>
+        <li>在固定点集上，点值形式的乘法就是逐点相乘，O(n)。</li>
+        <li>NTT 用单位根把两种表示互转，复杂度 O(n log n)。</li>
+        <li>单位根的存在依赖 n 整除 p−1，即 <code>n ≤ 2<sup>s</sup></code>（s 是 2-adicity）。</li>
+        <li>蝶形运算让每个中间结果被复用两次，这是加速的全部来源。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「FFT 只能处理浮点数。」</span></div>
+      <div class="r"><i>✓</i><div>FFT 是算法结构，域可以是复数、也可以是有限域。
+        有限域上的版本叫 NTT，<strong>没有浮点误差</strong>，结果精确 —— 这对密码学是必需的。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「多项式次数越高越好，表达力更强。」</span></div>
+      <div class="r"><i>✓</i><div>次数直接对应 NTT 规模和证明者内存。次数翻倍，证明时间也大约翻倍。
+        <strong>能用低次就用低次</strong>，这是电路优化的核心目标之一。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「插值和求值是一回事。」</span></div>
+      <div class="r"><i>✓</i><div>方向相反：<strong>求值</strong>是「给系数和点，算值」；<strong>插值</strong>是「给点和值，算系数」。
+        前者是 NTT，后者是逆 NTT。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「补零到 2 的幂没有代价。」</span></div>
+      <div class="r"><i>✓</i><div>代价很实在：一个 100 万约束的电路补到 <code>2²⁰</code> 只浪费 5%，
+        但 110 万约束补到 <code>2²¹</code> 就浪费了 47% —— <strong>证明时间直接翻倍</strong>。
+        所以电路优化常常是在「凑整」上做文章。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="01-03-pairings.html">
+      <span class="pl">← 上一模块 · 01 · 03</span>
+      <span class="pt">双线性配对：让指数上的乘法变成加法</span>
+    </a>
+    <a href="01-05-coding-theory.html">
+      <span class="pl">下一模块 · 01 · 05</span>
+      <span class="pt">编码理论：FRI 靠「远离码字」判断次数 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

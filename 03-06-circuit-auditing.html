@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>电路审计 · Circuit Auditing | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">电路审计</div>
+  <div class="side-s">03 · Circuit Auditing</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>为什么审计是必需品</a>
+    <a href="#s2"><span>2</span>约束不足长什么样</a>
+    <a href="#s3"><span>3</span>三类高发漏洞</a>
+    <a href="#s4"><span>4</span>形式化验证</a>
+    <a href="#s5"><span>5</span>差分与模糊测试</a>
+    <a href="#s6"><span>6</span>审计清单</a>
+    <a href="#s7"><span>7</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="03-05-hardware.html">← 上一模块 · 硬件加速</a>
+    <a href="03-07-zkvm.html">下一模块 · zkVM →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>为什么审计是必需品</a></li>
+      <li><a href="#s2"><span>2</span>约束不足</a></li>
+      <li><a href="#s3"><span>3</span>三类高发漏洞</a></li>
+      <li><a href="#s4"><span>4</span>形式化验证</a></li>
+      <li><a href="#s5"><span>5</span>差分与模糊测试</a></li>
+      <li><a href="#s6"><span>6</span>审计清单</a></li>
+      <li><a href="#s7"><span>7</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>03 工程实现</span><span>/</span><b>03 · 06</b></div>
+
+  <header>
+    <h1>电路审计：唯一不能省的成本</h1>
+    <p class="tagline">
+      密码学保证了「你证明了你说要证的东西」，但没有任何机制保证
+      <strong>「你说要证的东西就是你想证的东西」</strong>。
+      这条缝隙里，埋着 ZKP 领域绝大多数真实事故。
+    </p>
+    <div class="meta">
+      <span class="hot">安全底线</span>
+      <span>≈ 16 min</span>
+      <span>难度 4 / 5</span>
+      <span>前置：电路 DSL · 算术化</span>
+      <span>产出：可上线的电路</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>为什么这件事不能靠「跑通了」</h2>
+    <p class="lead">
+      普通程序出错，通常会有异常、崩溃、日志、测试失败。
+      电路出错<strong>什么都不发生</strong>：编译通过、证明生成、链上验证通过。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px">检查手段</th><th>能发现约束不足吗</th></tr></thead>
+        <tbody>
+          <tr><td>编译</td><td>不能（语法完全合法）</td></tr>
+          <tr><td>单元测试</td><td>不能（正常输入下行为正确）</td></tr>
+          <tr><td>证明生成</td><td>不能（会成功生成）</td></tr>
+          <tr><td>链上验证</td><td>不能（会通过）</td></tr>
+          <tr><td><strong>对抗性输入 + 形式化分析</strong></td><td><strong>能</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      所以审计不是「最佳实践」，是<strong>唯一的发现手段</strong>。
+      这也是为什么成熟团队愿意在审计上花几十万美元 —— 不是合规要求，是没有别的办法。
+    </p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>约束不足：一个能跑通的漏洞</h2>
+    <p class="lead">
+      看一段「看起来完全正常」的 Circom 代码。它要实现：给定 <code>x</code>，输出 <code>x²</code>，
+      并检查 <code>x</code> 不为零。
+    </p>
+    <pre data-lang="circom"><code><span class="k">template</span> Square() {
+    <span class="k">signal input</span> x;
+    <span class="k">signal output</span> y;
+    <span class="k">signal</span> invX;
+
+    y &lt;== x * x;              <span class="c">// 正确：赋值 + 约束</span>
+
+    invX &lt;-- 1 / x;           <span class="c">// 只赋值，没有约束！</span>
+    <span class="c">// 缺少: invX * x === 1;</span>
+}</code></pre>
+    <p>
+      这段代码在「诚实输入」下完全正确：<code>x = 3</code> 时 <code>y = 9</code>，
+      <code>invX = 1/3</code>，证明能通过。
+    </p>
+    <p>但证明者可以这样做：</p>
+    <div class="fml" style="font-size:13px;text-align:left;line-height:2.1">
+      公开输入 <em>x</em> = 0 &nbsp;&nbsp;<span style="color:#A6432B">（本应被拒绝）</span><br>
+      令 <em>invX</em> = 12345 &nbsp;&nbsp;<span style="color:#A6432B">（任意值）</span><br>
+      <em>y</em> = 0 &nbsp;&nbsp;<span style="color:#55703F">✓ 约束 y = x² 满足</span><br>
+      <span style="color:#A6432B">没有约束检查 invX，所以整个电路通过</span>
+    </div>
+    <p>
+      「除以零」这个本应被拒绝的情况，被悄悄放行了。
+      如果这个 <code>invX</code> 后续被用于计算利率、份额、清算价格 —— 后果可想而知。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这类 bug 的共同特征</span>
+        <p>
+          <strong>正常路径下行为正确，异常路径下静默通过。</strong>
+          测试通常只覆盖正常路径，所以永远发现不了。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>三类高发漏洞</h2>
+    <h3>第一类：只赋值不约束</h3>
+    <p>
+      最常见。多发生在用 <code>&lt;--</code> 的地方：位分解、除法、比较、查表索引。
+      <strong>每一个 <code>&lt;--</code> 都必须能找到一条配套的 <code>===</code></strong>，
+      否则就是一个自由变量。
+    </p>
+
+    <h3>第二类：位宽检查不完备</h3>
+    <p>
+      域元素是 254 位，没有「溢出」概念。想让一个值表示 <code>u32</code>，
+      必须显式约束 <code>0 ≤ x &lt; 2³²</code>。少检查一位，攻击者就能塞进 <code>2³²</code> 以上的值。
+    </p>
+    <pre data-lang="circom"><code><span class="c">// 错误：只检查了 31 位</span>
+<span class="k">for</span> (<span class="k">var</span> i = 0; i &lt; 31; i++) { ... }
+
+<span class="c">// 正确：32 位全查</span>
+<span class="k">for</span> (<span class="k">var</span> i = 0; i &lt; 32; i++) { ... }</code></pre>
+
+    <h3>第三类：公开输入未绑定</h3>
+    <p>
+      电路算对了，但验证合约<strong>没有把关键值作为公开输入传进去</strong>。
+      于是攻击者可以拿一份合法证明，配一个伪造的公开输入去验证。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:180px">场景</th><th>漏掉的绑定</th><th>后果</th></tr></thead>
+        <tbody>
+          <tr><td>Rollup</td><td>新的状态根</td><td>可任意「更新」状态</td></tr>
+          <tr><td>跨链桥</td><td>目标链 ID</td><td>证明可跨链重放</td></tr>
+          <tr><td>空投</td><td>接收者地址</td><td>可把份额转给自己</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">这类 bug 不在电路里，在「接线」上</span>
+        <p>
+          电路本身可能完全正确，审计电路发现不了。必须同时审计<strong>验证合约的调用方式</strong>：
+          哪些参数传了，哪些没传，顺序对不对。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>形式化验证：把「有没有漏约束」变成可判定问题</h2>
+    <p class="lead">
+      约束不足的本质是：<strong>存在两组不同的见证，都能满足全部约束，但语义不同</strong>。
+      这在数学上可以精确表述，也就可以自动检查。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">工具</th><th>做什么</th><th style="width:160px">适用</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Ecne</strong></td>
+            <td>以太坊基金会出品，把 Circom 电路转成 SMT 公式，检查是否存在「约束不足」</td>
+            <td>中小规模 Circom 电路</td>
+          </tr>
+          <tr>
+            <td><strong>Civer</strong></td>
+            <td>ConsenSys 出品，类似思路，输出反例</td>
+            <td>Circom</td>
+          </tr>
+          <tr>
+            <td><strong>circomspect</strong></td>
+            <td>静态分析器，检查常见模式（未约束信号、可疑的 &lt;--）</td>
+            <td>快速筛查</td>
+          </tr>
+          <tr>
+            <td><strong>Lean / Coq</strong></td>
+            <td>手工写机器证明，验证电路语义</td>
+            <td>核心协议、成本极高</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Ecne 的输出长什么样</h3>
+    <p>
+      它不只是说「有问题」，而是给出<strong>两组不同的见证</strong>：
+      它们在所有约束下都合法，但产生不同的输出。这两组见证就是漏洞的直接证据。
+    </p>
+    <div class="fml" style="font-size:12.5px;text-align:left;line-height:2">
+      见证 A：x = 0, invX = 1, y = 0 &nbsp;&nbsp;<span style="color:#55703F">✓ 通过</span><br>
+      见证 B：x = 0, invX = 999, y = 0 &nbsp;&nbsp;<span style="color:#55703F">✓ 通过</span><br>
+      <span style="color:#A6432B">同一公开输入，不同私密输入，都合法 —— 这就是约束不足</span>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">形式化验证的局限</span>
+        <p>
+          它只能检查<strong>「约束是否唯一确定见证」</strong>，不能检查
+          <strong>「约束是否表达了你的业务意图」</strong>。
+          如果电路逻辑本身就写错了（比如把「大于」写成「小于」），工具会说「约束很完备」，然后你上线一个错误系统。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>差分测试与模糊测试：工程手段</h2>
+    <h3>差分测试：同一逻辑，两种实现</h3>
+    <p>
+      用普通语言（Rust / Python）实现一遍同样的业务逻辑，然后随机生成输入，
+      比对两边输出是否一致。
+    </p>
+    <div class="fml" style="font-size:12.5px;text-align:left;line-height:2">
+      随机输入 <em>x</em> &nbsp;⟶&nbsp; 电路输出 <em>y</em><sub>circuit</sub><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;⟶&nbsp; 参考实现 <em>y</em><sub>ref</sub><br>
+      断言 <em>y</em><sub>circuit</sub> = <em>y</em><sub>ref</sub>
+      <span class="lbl">参考实现可以用任何语言，只要能表达业务逻辑</span>
+    </div>
+    <p>
+      这能发现「逻辑写错」类问题，但发现不了「约束不足」——
+      因为参考实现和电路在正常输入下行为一致。
+    </p>
+
+    <h3>模糊测试：专门找异常路径</h3>
+    <p>
+      不同于随机输入，模糊测试专门构造<strong>边界值和恶意值</strong>：
+    </p>
+    <ul>
+      <li><code>0</code>、<code>1</code>、<code>p−1</code>（域的最大值）</li>
+      <li><code>2<sup>32</sup>−1</code>、<code>2<sup>32</sup></code>（溢出边界）</li>
+      <li>数组索引越界、Merkle 路径长度为 0</li>
+      <li>同一变量在多个位置赋不同值（专门打约束不足）</li>
+    </ul>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">一个有效的土办法</span>
+        <p>
+          写一个「恶意证明者」脚本：<strong>故意让某个 <code>&lt;--</code> 变量的值偏离正确计算</strong>，
+          然后看证明能不能通过。如果能通过，说明那个变量没被约束。
+          这个测试比任何静态分析都直接。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>审计清单：逐条过</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:60px">#</th><th>检查项</th><th style="width:150px">怎么查</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>每个 <code>&lt;--</code> 是否都有配套的 <code>===</code></td><td>grep 全部 <code>&lt;--</code>，逐个核对</td></tr>
+          <tr><td>2</td><td>每个 signal 是否至少出现在一条约束里</td><td>静态分析 / 编译器警告</td></tr>
+          <tr><td>3</td><td>所有位宽检查是否覆盖完整位宽</td><td>数循环次数</td></tr>
+          <tr><td>4</td><td>除法是否处理了除零</td><td>找所有 <code>1/x</code> 和 <code>/</code></td></tr>
+          <tr><td>5</td><td>数组访问是否越界</td><td>检查索引的约束范围</td></tr>
+          <tr><td>6</td><td>公开输入是否全部绑定到验证合约</td><td>对比电路 signal 与合约参数</td></tr>
+          <tr><td>7</td><td>是否有「永远为真」的约束（如 <code>x*0 === 0</code>）</td><td>形式化工具会标记</td></tr>
+          <tr><td>8</td><td>常量是否正确（尤其是位掩码、模数）</td><td>单元测试 + 人工核对</td></tr>
+          <tr><td>9</td><td>是否复用了不该复用的信号</td><td>代码审查</td></tr>
+          <tr><td>10</td><td>电路与验证合约的 vk 是否匹配</td><td>重新编译比对哈希</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>约束不足是头号杀手：编译、测试、证明、验证全都发现不了。</li>
+        <li>每个 <code>&lt;--</code> 都必须有配套约束，否则就是自由变量。</li>
+        <li>三类高发：只赋值不约束、位宽检查不全、公开输入未绑定。</li>
+        <li>形式化验证（Ecne / Civer）能自动找约束不足，但查不出业务逻辑错误。</li>
+        <li>差分测试查逻辑，模糊测试查边界，两者互补。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「测试覆盖率 100% 就说明电路没问题。」</span></div>
+      <div class="r"><i>✓</i><div>覆盖率衡量的是「代码被执行过」，不是「约束完备」。
+        一个约束不足的电路，在 100% 覆盖率下依然完全正常 —— <strong>因为正常输入本来就不会触发漏洞</strong>。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「形式化验证通过就万事大吉。」</span></div>
+      <div class="r"><i>✓</i><div>它只证明「约束唯一确定见证」，不证明「约束符合业务意图」。
+        <strong>把业务需求翻译成约束这一步，仍然只能靠人。</strong></div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「审计一次就够了。」</span></div>
+      <div class="r"><i>✓</i><div>电路改一行就要重新审计。很多事故发生在「小改动」之后 ——
+        因为改的人以为只是加个功能，实际上破坏了某条约束的完整性。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「用成熟的库就不会有电路漏洞。」</span></div>
+      <div class="r"><i>✓</i><div>库只保证底层原语正确。<strong>漏洞几乎总是出在「你怎么用」</strong> ——
+        漏了一条约束、传错一个参数、少检查一位。这些是业务代码的问题，库管不了。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="03-05-hardware.html">
+      <span class="pl">← 上一模块 · 03 · 05</span>
+      <span class="pt">硬件加速：MSM 和 NTT 是全部瓶颈</span>
+    </a>
+    <a href="03-07-zkvm.html">
+      <span class="pl">下一模块 · 03 · 07</span>
+      <span class="pt">zkVM 与 zkEVM：把整个虚拟机做成电路 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

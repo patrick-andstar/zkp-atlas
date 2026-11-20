@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>电路 DSL · Circom / Noir / Cairo / Halo2 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">电路 DSL</div>
+  <div class="side-s">03 · Circuit DSLs</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>为什么需要专门的语言</a>
+    <a href="#s2"><span>2</span>四个主流选择</a>
+    <a href="#s3"><span>3</span>Circom 实战</a>
+    <a href="#s4"><span>4</span>赋值 vs 约束</a>
+    <a href="#s5"><span>5</span>工具链怎么串</a>
+    <a href="#s6"><span>6</span>怎么选</a>
+    <a href="#s7"><span>7</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="02-09-recursion.html">← 02 类最后一页</a>
+    <a href="03-02-proving-backends.html">下一模块 · 证明后端 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>为什么需要专门的语言</a></li>
+      <li><a href="#s2"><span>2</span>四个主流选择</a></li>
+      <li><a href="#s3"><span>3</span>Circom 实战</a></li>
+      <li><a href="#s4"><span>4</span>赋值 vs 约束</a></li>
+      <li><a href="#s5"><span>5</span>工具链</a></li>
+      <li><a href="#s6"><span>6</span>怎么选</a></li>
+      <li><a href="#s7"><span>7</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>03 工程实现</span><span>/</span><b>03 · 01</b></div>
+
+  <header>
+    <h1>电路 DSL：不能用 Rust 直接写电路</h1>
+    <p class="tagline">
+      你熟悉的语言都在「描述计算过程」，而电路需要的是「描述约束关系」。
+      这两件事的差别，决定了为什么会有 Circom、Noir、Cairo 这些专门的语言 ——
+      以及为什么写电路比写普通程序容易出安全漏洞。
+    </p>
+    <div class="meta">
+      <span class="hot">动手第一站</span>
+      <span>≈ 15 min</span>
+      <span>难度 3 / 5</span>
+      <span>前置：算术化</span>
+      <span>产出：可编译的电路</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>为什么不能用普通语言写</h2>
+    <p class="lead">
+      在 Rust 里写 <code>let y = x * x;</code>，编译器生成的是「乘一次，存起来」。
+      在电路里，这行代码的含义完全不同：<strong>它要么是「算出 y 的值」，要么是「约束 y 等于 x²」，或者两者都是</strong>。
+    </p>
+    <p>这三种语义在普通语言里没有区分，但在电路里必须显式表达：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">语义</th><th>Circom 写法</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td>只赋值</td><td><code>y &lt;-- x * x;</code></td><td>算出 y，但<strong>不约束</strong>它等于 x²</td></tr>
+          <tr><td>只约束</td><td><code>y === x * x;</code></td><td>声明等式，但不计算 y（y 必须已在别处赋值）</td></tr>
+          <tr><td>两者都做</td><td><code>y &lt;== x * x;</code></td><td>赋值 + 约束，最常用</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      为什么需要「只赋值」？因为有些计算在电路里很难直接表达（比如开方、位分解），
+      你需要先用普通计算算出结果，再单独加约束验证它。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这就是 90% 电路漏洞的来源</span>
+        <p>
+          用了 <code>&lt;--</code> 却忘了加 <code>===</code>，等于告诉证明者「这个变量你随便填」。
+          编译能过、证明能生成、链上能验证 —— 但业务规则已经失效了。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>四个主流选择，定位完全不同</h2>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th style="width:100px">语言</th><th style="width:110px">背后是谁</th><th>抽象层次</th><th style="width:150px">典型用户</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Circom</strong></td><td>iden3</td>
+            <td>低层。手写约束，直接对应 R1CS</td>
+            <td>Groth16 项目、Tornado Cash、Semaphore</td>
+          </tr>
+          <tr>
+            <td><strong>Noir</strong></td><td>Aztec</td>
+            <td>中层。Rust 风格，编译器生成 ACIR</td>
+            <td>通用应用、想快速上手的人</td>
+          </tr>
+          <tr>
+            <td><strong>Cairo</strong></td><td>StarkWare</td>
+            <td>高层。写起来像普通程序，编译成 AIR</td>
+            <td>StarkNet 生态</td>
+          </tr>
+          <tr>
+            <td><strong>Halo2</strong></td><td>Zcash / PSE</td>
+            <td>最低层。Rust API，直接操作 PLONKish 表格</td>
+            <td>zkEVM、需要极致优化的团队</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      注意抽象层次的差别：<strong>越高层越好写，但越难控制约束数量</strong>。
+      Cairo 写起来最舒服，但生成的 AIR 约束可能比你手写的多几倍；
+      Halo2 写起来最痛苦，但每一行表格都在你掌控中。
+    </p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>Circom 实战：写一个范围检查</h2>
+    <p class="lead">
+      目标：约束 <code>in</code> 是一个 8 位无符号数（0 到 255）。
+      这在电路里必须拆成比特，因为域元素没有「位宽」概念。
+    </p>
+    <pre data-lang="circom"><code><span class="k">pragma</span> circom 2.0.0;
+
+<span class="k">template</span> RangeCheck8() {
+    <span class="k">signal input</span> in;
+    <span class="k">signal output</span> ok;
+
+    <span class="k">signal</span> bits[8];
+    <span class="k">var</span> sum = 0;
+
+    <span class="k">for</span> (<span class="k">var</span> i = 0; i &lt; 8; i++) {
+        <span class="c">// 只赋值：把 in 的第 i 位取出来</span>
+        bits[i] &lt;-- (in &gt;&gt; i) &amp; 1;
+
+        <span class="c">// 关键约束：每个 bit 必须是 0 或 1</span>
+        bits[i] * (bits[i] - 1) === 0;
+
+        sum += bits[i] * (1 &lt;&lt; i);
+    }
+
+    <span class="c">// 关键约束：拼回去必须等于原值</span>
+    sum === in;
+
+    ok &lt;== 1;
+}
+
+<span class="k">component</span> main = RangeCheck8();</code></pre>
+    <p>这段代码只有 <strong>9 条约束</strong>（8 条比特约束 + 1 条求和约束）。逐条看：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:180px">语句</th><th>作用</th><th style="width:120px">约束数</th></tr></thead>
+        <tbody>
+          <tr><td><code>bits[i] &lt;-- ...</code></td><td>用普通计算取出第 i 位。这是「赋值」，不受约束</td><td>0</td></tr>
+          <tr><td><code>bits[i]*(bits[i]-1) === 0</code></td><td>强制比特只能是 0 或 1</td><td>1</td></tr>
+          <tr><td><code>sum === in</code></td><td>拼回去必须等于输入</td><td>1</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">如果删掉 <code>bits[i]*(bits[i]-1) === 0</code> 会怎样</span>
+        <p>
+          证明者可以令 <code>bits[0] = 300</code>、其余为 0，只要 <code>sum</code> 恰好等于 <code>in</code>。
+          更糟的是，他可以让 <code>bits</code> 取任意值来「凑」出想要的 <code>sum</code> ——
+          范围检查彻底失效，而电路依然能生成合法证明。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>赋值与约束：必须形成肌肉记忆</h2>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.2">
+      <em>x</em> &lt;-- <em>expr</em> &nbsp;&nbsp;<span style="color:#A6432B">只赋值。证明者可以填任意值，只要后续约束满足</span><br>
+      <em>x</em> === <em>expr</em> &nbsp;&nbsp;<span style="color:#12384F">只约束。不计算，x 必须已在别处有值</span><br>
+      <em>x</em> &lt;== <em>expr</em> &nbsp;&nbsp;<span style="color:#55703F">两者都做。最安全，优先用它</span>
+    </div>
+    <h3>什么时候必须用 <code>&lt;--</code></h3>
+    <p>当表达式<strong>不是低次多项式</strong>时。比如：</p>
+    <ul>
+      <li>位分解：<code>(in &gt;&gt; i) &amp; 1</code> —— 位运算是非算术的</li>
+      <li>比较：<code>a &lt; b ? 1 : 0</code> —— 需要借用比较逻辑</li>
+      <li>除法：<code>a / b</code> —— 域里没有除法，要乘逆元</li>
+    </ul>
+    <p>这些都必须「先算后证」：用 <code>&lt;--</code> 算出来，再用 <code>===</code> 加一组约束把它钉死。</p>
+    <h3>一个反面教材</h3>
+    <pre data-lang="circom"><code><span class="c">// 错误：只赋值，没有约束</span>
+<span class="k">signal</span> inv;
+inv &lt;-- 1 / in;
+
+<span class="c">// 正确：加一条约束验证它</span>
+inv * in === 1;</code></pre>
+    <p>
+      第二种写法还有额外好处：如果 <code>in = 0</code>，约束 <code>inv * 0 = 1</code> 无法满足，
+      证明直接失败 —— 这顺便防住了「除以零」。
+    </p>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>工具链：从 .circom 到链上验证</h2>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>编译</h4>
+        <pre data-lang="bash" style="margin:8px 0"><code>circom range.circom --r1cs --wasm --sym</code></pre>
+        <p>产出三个文件：<code>.r1cs</code>（约束系统）、<code>.wasm</code>（见证生成器）、<code>.sym</code>（调试符号表）。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>可信设置</h4>
+        <pre data-lang="bash" style="margin:8px 0"><code>snarkjs groth16 setup range.r1cs pot12_final.ptau range_0.zkey</code></pre>
+        <p>用已有的 Powers of Tau 文件 + 你的电路，生成电路专用密钥。</p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>生成证明</h4>
+        <pre data-lang="bash" style="margin:8px 0"><code>node generate_witness.js range.wasm input.json witness.wtns
+snarkjs groth16 prove range_0.zkey witness.wtns proof.json public.json</code></pre>
+        <p><code>input.json</code> 里放公开和私密输入，输出证明和公开信号。</p>
+      </div>
+      <div class="st">
+        <div class="d">4</div>
+        <h4>导出验证合约</h4>
+        <pre data-lang="bash" style="margin:8px 0"><code>snarkjs zkey export solidityverifier range_0.zkey Verifier.sol</code></pre>
+        <p>得到一个 Solidity 合约，把 <code>proof.json</code> 的三个点传进去调用 <code>verifyProof</code>。</p>
+      </div>
+    </div>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">一个容易踩的坑</span>
+        <p>
+          <code>.zkey</code> 是<strong>电路专用</strong>的。改一行 Circom 代码，就必须重新生成 <code>.zkey</code>，
+          但 <code>.ptau</code> 可以复用（它是通用的幂次，与电路无关）。
+          搞混这两个文件的作用，会浪费很多时间。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>怎么选：按「你在做什么」而不是「哪个更先进」</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:200px">你的情况</th><th>建议</th><th>理由</th></tr></thead>
+        <tbody>
+          <tr><td>第一次写电路，想快速看到结果</td><td><strong>Noir</strong></td><td>语法接近 Rust，工具链一键走通，不用手工管仪式</td></tr>
+          <tr><td>要上以太坊，gas 敏感</td><td><strong>Circom + Groth16</strong></td><td>证明最小（128 B），社区教程最多</td></tr>
+          <tr><td>做 zkEVM / 需要查找表</td><td><strong>Halo2 或 Circom + PLONK</strong></td><td>PLONKish 的表达力不可替代</td></tr>
+          <tr><td>做 StarkNet 应用</td><td><strong>Cairo</strong></td><td>原生集成，不用自己搭证明服务</td></tr>
+          <tr><td>要极致性能、愿意读源码</td><td><strong>Halo2 / Plonky3</strong></td><td>每一层都可调，但没有「开箱即用」</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">给第一次动手的建议</span>
+        <p>
+          先用 Noir 写一个「证明我知道 x 使 x² = 9」的小电路，跑通全流程（编译 → 证明 → 验证）。
+          这一步会暴露你对「公开/私密输入」的理解偏差 —— 而这比读十篇文章有用。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>电路语言的核心区分是「赋值」与「约束」，普通语言没有这个区分。</li>
+        <li>Circom 的 <code>&lt;==</code> 同时做两件事，<code>&lt;--</code> 只赋值 —— 后者必须配 <code>===</code>。</li>
+        <li>位运算、比较、除法都必须「先算后证」。</li>
+        <li>四个 DSL 的差别是抽象层次：越高层越好写，越难控制约束数。</li>
+        <li><code>.ptau</code> 通用可复用，<code>.zkey</code> 电路专用必须重生成。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「会用 Rust 就会写电路。」</span></div>
+      <div class="r"><i>✓</i><div>语法像，思维完全不同。普通程序是「怎么算」，电路是「算什么必须成立」。
+        <strong>写电路时你更像在写测试断言，而不是在写实现。</strong></div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「编译器会帮我检查约束是否完整。」</span></div>
+      <div class="r"><i>✓</i><div>不会。约束缺失在语法上完全合法，编译器没有任何理由报错。
+        <strong>这是语义层面的漏洞，只能靠审计和形式化验证发现。</strong></div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「约束越多越安全。」</span></div>
+      <div class="r"><i>✓</i><div>约束多只让证明变慢。安全性取决于<strong>该有的约束是否都有</strong>。
+        一条多余的约束不增加安全，只增加成本。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「Circom 编译出的 wasm 可以直接上链。」</span></div>
+      <div class="r"><i>✓</i><div>wasm 只是<strong>本地生成见证</strong>用的。上链的是 proof（三个群元素）和验证合约。
+        把 wasm 和 proof 搞混，是初学者最常见的部署错误。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="index.html">
+      <span class="pl">← 返回</span>
+      <span class="pt">图谱首页</span>
+    </a>
+    <a href="03-02-proving-backends.html">
+      <span class="pl">下一模块 · 03 · 02</span>
+      <span class="pt">证明后端：arkworks / gnark / halo2 怎么选 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

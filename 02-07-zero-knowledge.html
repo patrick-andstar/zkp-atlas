@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>零知识变换 · Simulator &amp; Blinding | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">零知识变换</div>
+  <div class="side-s">02 · Zero-Knowledge Transforms</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>要解决的问题</a>
+    <a href="#s2"><span>2</span>直觉：加噪声</a>
+    <a href="#s3"><span>3</span>形式化定义</a>
+    <a href="#s4"><span>4</span>Schnorr 的模拟器</a>
+    <a href="#s5"><span>5</span>三种常用技术</a>
+    <a href="#s6"><span>6</span>非交互之后的问题</a>
+    <a href="#s7"><span>7</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="02-06-folding-schemes.html">← 上一模块 · 折叠方案</a>
+    <a href="02-08-proof-systems.html">下一模块 · 证明系统 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>要解决的问题</a></li>
+      <li><a href="#s2"><span>2</span>直觉</a></li>
+      <li><a href="#s3"><span>3</span>形式化定义</a></li>
+      <li><a href="#s4"><span>4</span>Schnorr 模拟器</a></li>
+      <li><a href="#s5"><span>5</span>三种技术</a></li>
+      <li><a href="#s6"><span>6</span>非交互的问题</a></li>
+      <li><a href="#s7"><span>7</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>02 证明构造</span><span>/</span><b>02 · 07</b></div>
+
+  <header>
+    <h1>零知识变换：为什么加个随机数就够了</h1>
+    <p class="tagline">
+      「零知识」不是「看起来没泄露」，而是一个严格的数学陈述：
+      <strong>存在一个不接触见证的模拟器，能造出与真实证明无法区分的假证明</strong>。
+      这一页讲这句话到底怎么证明，以及工程上靠什么实现它。
+    </p>
+    <div class="meta">
+      <span class="hot">核心概念</span>
+      <span>≈ 15 min</span>
+      <span>难度 3 / 5</span>
+      <span>前置：承诺 · 交互协议</span>
+      <span>后续：Groth16 / PLONK 的盲化</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决的问题</h2>
+    <p class="lead">
+      一个「可靠的」证明系统可能是<strong>完全泄露的</strong>。
+      比如：证明者直接把见证 <code>w</code> 发给验证者，验证者自己算一遍 <code>R(x,w)=1</code>。
+      这满足完备性和可靠性 —— 但它显然是「零知识」的反面。
+    </p>
+    <p>
+      所以「零知识」必须被单独定义、单独证明。而且它不能靠直觉：
+      「这个值看起来是随机的」不是数学。
+    </p>
+    <p>
+      问题在于：证明者发出去的东西，总得让验证者能检查。这些信息里必然包含了
+      <strong>某些关于见证的函数</strong>。零知识要求的是：这些函数值<strong>不提供任何超出「命题为真」的信息</strong>。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">一句话判据</span>
+        <p>
+          如果验证者能<strong>自己造出</strong>一份看起来一模一样的交互记录，
+          那他从真实交互里就什么也没学到 —— 因为「自己造」意味着不需要见证。
+          这就是模拟器思路的来源。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：把「证据」泡在噪声里</h2>
+    <p>
+      你要证明「我知道 x」，但又不能说出 x。直接说 <code>x = 42</code> 显然不行。
+      那说什么？
+    </p>
+    <p>
+      说一个<strong>被随机数掩盖过的 x</strong>。<code>s = r + c·x</code>：
+      如果 <code>r</code> 是均匀随机的，那么 <code>s</code> 在域上也是均匀随机的 ——
+      它和 <code>x</code> 的关系被完全打散了。
+    </p>
+    <div class="fml">
+      <em>s</em> = <em>r</em> + <em>c</em>·<em>x</em> &nbsp;&nbsp;⟹&nbsp;&nbsp;
+      <em>s</em> 的分布与 <em>x</em> 无关（当 <em>r</em> 均匀随机时）
+      <span class="lbl">给定 s，反推 x 需要知道 r；而 r 已经被丢弃了</span>
+    </div>
+    <p>
+      但光有 <code>s</code> 还不够 —— 验证者要能确认 <code>s</code> 和 <code>x</code> 的关系。
+      所以还要给他一个「锚点」<code>R = g<sup>r</sup></code>。有了 <code>R</code>、<code>c</code>、<code>s</code>，
+      他能验证 <code>g<sup>s</sup> = R·X<sup>c</sup></code>，但推不出 <code>x</code>。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">这就是「盲化」</span>
+        <p>
+          用一个均匀随机量 <code>r</code> 把敏感值「平移」到一个随机位置。
+          因为平移量未知，观察者无法还原原始值。
+          所有零知识技术，本质上都是在找「合适的平移方式」。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>形式化定义：模拟器存在</h2>
+    <p class="lead">
+      零知识的严格定义不涉及「泄露多少比特」，而是关于<strong>分布不可区分</strong>。
+    </p>
+    <div class="fml" style="font-size:13px;text-align:left;line-height:2">
+      <strong>定义（计算零知识）</strong><br>
+      存在一个多项式时间算法 <em>S</em>（模拟器），使得对任意验证者 <em>V</em>*、任意 (x, w) ∈ R，<br>
+      都有 &nbsp; View<sub>⟨P(x,w), V*(x)⟩</sub> &nbsp;≈<sub>c</sub>&nbsp; S<sup>V*</sup>(x)
+      <span class="lbl">≈<sub>c</sub> 表示「计算不可区分」：任何多项式时间区分器都分不出来</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">符号</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td><code>View</code></td><td>验证者在整个交互中看到的一切：所有消息、自己的随机数、时间顺序。</td></tr>
+          <tr><td><code>S<sup>V*</sup>(x)</code></td><td>模拟器的输出。它<strong>只拿到公开输入 x</strong>，没有 w。</td></tr>
+          <tr><td><code>S<sup>V*</sup></code> 的上标</td><td>模拟器可以「黑盒调用」验证者，看它会问什么 —— 这叫 rewinding（重放）。</td></tr>
+          <tr><td><code>≈<sub>c</sub></code></td><td>不存在多项式时间的算法能区分这两个分布，优势不可忽略。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      注意定义的形状：<strong>「真实交互」和「模拟出的假交互」看起来一样</strong>。
+      既然模拟器没有 <code>w</code> 也能造出一样的记录，那真实交互里的 <code>w</code>
+      就没有产生任何「可观测的痕迹」。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">为什么必须是「计算」不可区分</span>
+        <p>
+          如果要求「统计不可区分」（连无穷算力也分不出），很多实用协议就不满足了。
+          Schnorr 的模拟器输出分布与真实分布<strong>完全相同</strong>，那是最强的一档；
+          但 Groth16 这类方案只能做到计算不可区分，依赖离散对数假设。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>Schnorr 的模拟器：先选答案，再倒推题目</h2>
+    <p class="lead">
+      这是理解零知识最好用的例子，因为它简单到可以完整写出来。
+      真实交互是「先承诺 R，再拿挑战 c，最后算 s」。模拟器把顺序反过来。
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>真实交互</h4>
+        <p>
+          证明者选 <code>r</code> → 发 <code>R = g<sup>r</sup></code> →
+          收到 <code>c</code> → 算 <code>s = r + c·x</code>。
+        </p>
+        <p>验证者看到的记录是 <code>(R, c, s)</code>，且满足 <code>g<sup>s</sup> = R·X<sup>c</sup></code>。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>模拟器：先挑 c 和 s</h4>
+        <p>
+          随机取 <code>c</code> 和 <code>s</code>（都在 <code>𝔽<sub>p</sub></code> 上均匀），
+          然后<strong>反推</strong> <code>R</code>：
+        </p>
+        <div class="fml" style="font-size:13px">
+          <em>R</em> = <em>g</em><sup><em>s</em></sup> · <em>X</em><sup>−<em>c</em></sup>
+          <span class="lbl">这样构造出来的 R 必然满足验证等式，因为它是被等式「解出来」的</span>
+        </div>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>输出 (R, c, s)</h4>
+        <p>
+          这份记录和真实交互<strong>分布完全相同</strong>。因为真实交互里 <code>s = r + c·x</code>，
+          当 <code>r</code> 均匀时 <code>s</code> 也均匀；而模拟器里 <code>s</code> 本来就是均匀选的。
+          两者都是「均匀随机的 s，配一个由等式决定的 R」。
+        </p>
+      </div>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">结论</span>
+        <p>
+          模拟器<strong>没有用 x</strong>，却造出了完全一样的记录。
+          所以验证者从真实交互里能提取到的信息，他自己也能造出来 —— 也就是零。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>三种常用技术，以及它们分别防什么</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">技术</th><th>做法</th><th style="width:180px">防的是什么</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>随机化</strong><br><span style="font-size:12px;color:var(--ink3)">randomization</span></td>
+            <td>证明者每次用一个新随机数，重新「洗牌」</td>
+            <td>多次证明之间的关联分析（同一见证被反复证明）</td>
+          </tr>
+          <tr>
+            <td><strong>盲化</strong><br><span style="font-size:12px;color:var(--ink3)">blinding</span></td>
+            <td>把敏感多项式加上随机倍数，例如 <code>p(x) + r·Z(x)</code></td>
+            <td>承诺泄露系数信息</td>
+          </tr>
+          <tr>
+            <td><strong>HVZK</strong><br><span style="font-size:12px;color:var(--ink3)">honest-verifier ZK</span></td>
+            <td>只对「诚实验证者」保证零知识，不防御恶意验证者</td>
+            <td>一个更弱但更容易证明的性质，通常配合 Fiat–Shamir 使用</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>盲化在 SNARK 里长什么样</h3>
+    <p>
+      证明者要承诺多项式 <code>a(x)</code>，但直接承诺会泄露系数。做法是加一个随机倍数：
+    </p>
+    <div class="fml">
+      <em>a</em>'(x) = <em>a</em>(x) + <em>b</em><sub>1</sub>·<em>Z</em>(x) + <em>b</em><sub>2</sub>·<em>x</em>·<em>Z</em>(x)
+      <span class="lbl">b 是随机盲化因子；因为 Z(x) 在约束点上为零，加上它不改变任何约束的取值</span>
+    </div>
+    <p>
+      这就是为什么 <code>Z(x) = Π(x−r<sub>i</sub>)</code> 这个「目标多项式」如此重要：
+      它在所有约束点上为零，所以<strong>加上它的倍数，等于「在合法解上什么也没改」</strong>，
+      但对外部观察者来说，承诺值彻底变了。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么至少要加两项</span>
+        <p>
+          只加一项 <code>b·Z(x)</code> 时，盲化因子的自由度不足以掩盖所有系数信息 ——
+          攻击者可能通过多次打开反推出 <code>a</code> 的某些线性组合。
+          加上 <code>x·Z(x)</code> 这一项，才能保证在任意两个点上打开都安全。
+          Groth16 的证明里正好有 <code>A、B、C</code> 三个点，对应三组盲化因子。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>变成非交互之后，零知识会变弱吗</h2>
+    <p>
+      会。这是一个容易被忽略的细节。
+    </p>
+    <p>
+      交互式协议里，验证者每次给的挑战 <code>c</code> 都是新随机的，所以证明者可以放心地用一次性随机数。
+      但 Fiat–Shamir 之后，<strong>证明可以被无限次复制、转发</strong> ——
+      如果同一份证明被用于多个场景，随机数的重用就可能导致泄露。
+    </p>
+    <h3>两个实际约束</h3>
+    <ul>
+      <li><strong>随机数必须真随机</strong>：用时间戳、计数器当 <code>r</code>，会让不同证明之间产生可预测的关系。</li>
+      <li><strong>盲化因子必须每次新生成</strong>：重用一个 <code>b</code> 去证明不同的命题，等价于泄露了两者的差。</li>
+    </ul>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这类错误的后果是静默的</span>
+        <p>
+          证明依然能通过验证，可靠性没有任何问题。泄露只发生在「多次证明的联合分布」上 ——
+          单看一份证明完全正常。所以它极难通过功能测试发现，必须靠代码审计或形式化分析。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>零知识的定义是「存在模拟器」，不是「看起来随机」。</li>
+        <li>模拟器<strong>没有见证</strong>，却能造出同分布的记录 —— 这才是「什么也没泄露」的证明。</li>
+        <li>Schnorr 的模拟器把顺序反过来：先选 <code>c, s</code>，再倒推 <code>R = g<sup>s</sup>X<sup>−c</sup></code>。</li>
+        <li>盲化的标准手法是加上 <code>Z(x)</code> 的随机倍数 —— 它在约束点上为零，不改变语义。</li>
+        <li>非交互化之后，随机数复用会成为新的泄露面。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「证明里没有明文，所以就是零知识。」</span></div>
+      <div class="r"><i>✓</i><div>没有明文不等于零知识。承诺、群元素、多项式取值都可能携带关于见证的信息。
+        <strong>唯一的判据是能不能构造出模拟器</strong>。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「模拟器能造出证明，说明证明是假的。」</span></div>
+      <div class="r"><i>✓</i><div>模拟器是<strong>证明工具</strong>，不是攻击手段。它说明了「验证者看到的东西不含信息」，
+        而不是「证明本身无效」。真实的证明依然由真实的见证生成。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「加了随机数就一定零知识。」</span></div>
+      <div class="r"><i>✓</i><div>随机数加错位置会破坏完备性（验证不通过），加得太少会泄露，加得不可重复会引入新问题。
+        <strong>「加在哪、加几项、什么时候重新生成」都有严格约束。</strong></div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「HVZK 就等于零知识。」</span></div>
+      <div class="r"><i>✓</i><div>HVZK 只对<strong>诚实</strong>验证者成立。恶意验证者可能偏离协议（比如选一个特殊的挑战），
+        从而提取额外信息。要防住这种情况，需要更强的性质或额外的技术（如 Fiat–Shamir 后的模拟）。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="02-06-folding-schemes.html">
+      <span class="pl">← 上一模块 · 02 · 06</span>
+      <span class="pt">折叠方案：把两个实例折成一个</span>
+    </a>
+    <a href="02-08-proof-systems.html">
+      <span class="pl">下一模块 · 02 · 08</span>
+      <span class="pt">证明系统：三个群元素为什么够 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

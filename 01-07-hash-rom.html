@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>哈希与随机预言机 · Hash &amp; ROM | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">哈希与随机预言机</div>
+  <div class="side-s">01 · Hash &amp; Random Oracle</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这个模块要解决什么问题</a>
+    <a href="#s2"><span>2</span>三条安全性质</a>
+    <a href="#s3"><span>3</span>随机预言机模型</a>
+    <a href="#s4"><span>4</span>Merkle 树</a>
+    <a href="#s5"><span>5</span>ZK-friendly 哈希</a>
+    <a href="#s6"><span>6</span>长度扩展与前缀</a>
+    <a href="#s7"><span>7</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="01-06-complexity.html">← 上一模块 · 复杂性理论</a>
+    <a href="01-08-commitments.html">下一模块 · 承诺方案 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>这个模块要解决什么问题</a></li>
+      <li><a href="#s2"><span>2</span>三条性质</a></li>
+      <li><a href="#s3"><span>3</span>随机预言机</a></li>
+      <li><a href="#s4"><span>4</span>Merkle 树</a></li>
+      <li><a href="#s5"><span>5</span>ZK-friendly 哈希</a></li>
+      <li><a href="#s6"><span>6</span>长度扩展</a></li>
+      <li><a href="#s7"><span>7</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>01 数学基础</span><span>/</span><b>01 · 07</b></div>
+
+  <header>
+    <h1>哈希与随机预言机：那个「假装随机」的假设</h1>
+    <p class="tagline">
+      Fiat–Shamir 用哈希生成挑战，Merkle 树用哈希承诺数据，STARK 用哈希替代配对。
+      整个 ZKP 到处是哈希 —— 但「哈希像随机函数」这件事，<strong>是一个假设，不是定理</strong>。
+    </p>
+    <div class="meta">
+      <span>≈ 12 min</span>
+      <span>难度 2 / 5</span>
+      <span>前置：无</span>
+      <span>被用于：Fiat–Shamir · FRI · Merkle</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      哈希在 ZKP 里不是「加密」，也不是「压缩」。它承担三个完全不同的职责，混起来容易糊涂。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">职责</th><th>怎么用</th><th style="width:170px">用在哪</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>生成挑战</strong></td>
+            <td>把「承诺 + 公开输入」映射成一个随机数</td>
+            <td>Fiat–Shamir</td>
+          </tr>
+          <tr>
+            <td><strong>承诺数据</strong></td>
+            <td>把一大块数据压成一个摘要，改一位就变</td>
+            <td>Merkle 树、FRI</td>
+          </tr>
+          <tr>
+            <td><strong>抗碰撞标识</strong></td>
+            <td>给电路、验证密钥、协议版本打指纹</td>
+            <td>域分隔、防重放</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      三者共用一个前提：<strong>给定输入，输出看起来完全随机；但同样的输入必然得到同样的输出。</strong>
+      这个「确定性 + 随机性」的组合，是哈希全部魔力的来源。
+    </p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>三条安全性质，强度依次递减</h2>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      <strong>抗原像</strong>：给定 <em>h</em>，找 <em>x</em> 使 H(<em>x</em>) = <em>h</em> 不可行<br>
+      <strong>抗第二原像</strong>：给定 <em>x</em>，找 <em>x</em>' ≠ <em>x</em> 使 H(<em>x</em>') = H(<em>x</em>) 不可行<br>
+      <strong>抗碰撞</strong>：找任意一对 <em>x</em> ≠ <em>x</em>' 使 H(<em>x</em>) = H(<em>x</em>') 不可行
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">性质</th><th>攻击复杂度</th><th>ZKP 里靠它做什么</th></tr></thead>
+        <tbody>
+          <tr><td>抗原像</td><td>2<sup>n</sup></td><td>承诺的隐藏性（不能从摘要反推数据）</td></tr>
+          <tr><td>抗第二原像</td><td>2<sup>n</sup></td><td>绑定性（不能换一个同样摘要的值）</td></tr>
+          <tr><td>抗碰撞</td><td>2<sup>n/2</sup>（生日攻击）</td><td>整体一致性（Merkle 根、电路指纹）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      注意抗碰撞只有 <code>2<sup>n/2</sup></code>：SHA-256 的碰撞强度是 128 位，不是 256 位。
+      所以在要求「128 位安全」的系统里，SHA-256 刚好够，不能打折。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">ZKP 里最常用的是哪一条</span>
+        <p>
+          主要是<strong>抗碰撞</strong>（Merkle 树、FRI 的一致性）和<strong>抗原像</strong>（承诺的隐藏性）。
+          抗第二原像用得少，但在「防重放」场景里会出现。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>随机预言机模型：一个必须说清的假设</h2>
+    <p class="lead">
+      安全性证明里，我们常常把哈希 <code>H</code> 当成一个<strong>真正的随机函数</strong>：
+      对任何新输入，输出均匀随机，且与之前所有输出无关。这个理想化的对象叫随机预言机（RO）。
+    </p>
+    <div class="fml">
+      <em>H</em> : {0,1}* <strong>→</strong> {0,1}<sup><em>λ</em></sup> &nbsp;&nbsp;（理想化为真随机）
+      <span class="lbl">任何人都可以查询，但输出不可预测；同样的输入永远得到同样的输出</span>
+    </div>
+    <p>
+      在 ROM 下，Fiat–Shamir 的安全性可以严格证明：证明者要作弊，必须在<strong>查询哈希之前</strong>
+      猜中它的输出，概率是 <code>2<sup>−λ</sup></code>。
+    </p>
+    <h3>但真实哈希不是随机函数</h3>
+    <p>
+      SHA-256 有固定结构（Merkle–Damgård），有长度扩展性质，有已知的分析方法。
+      它<em>看起来</em>像随机函数，但没人能证明它真的像。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这意味着什么</span>
+        <p>
+          「SNARK 在 ROM 下安全」不等于「SNARK 在实际中安全」。中间隔着一层假设：
+          <strong>你用的哈希确实行为像随机函数</strong>。
+          历史上出现过「在 ROM 下安全、但用具体哈希实现后被攻破」的协议（比如某些签名方案）。
+        </p>
+        <p>
+          工程上的应对：用经过充分分析的标准化哈希（SHA-256、SHA-3、BLAKE3），
+          不要自己设计，也不要用被弱化的变体。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>Merkle 树：用哈希承诺一整张表</h2>
+    <p>
+      FRI 需要承诺「一个多项式在上百万个点的取值」。直接哈希整张表，验证者没法查单个位置。
+      解法是<strong>分层哈希</strong>：
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>叶子层</h4>
+        <p>每个数据块单独哈希：<code>leaf<sub>i</sub> = H(data<sub>i</sub>)</code>。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>逐层向上</h4>
+        <p>相邻两个哈希拼接再哈希：<code>node = H(left ‖ right)</code>，直到只剩一个根。</p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>打开某个位置</h4>
+        <p>
+          给出 <code>data<sub>i</sub></code> 和从叶子到根的 <code>log n</code> 个兄弟哈希。
+          验证者逐层重算，看是否等于根。
+        </p>
+      </div>
+    </div>
+    <div class="fml">
+      证明大小 = <em>O</em>(log <em>n</em>) 个哈希 &nbsp;&nbsp;|&nbsp;&nbsp; 验证时间 = <em>O</em>(log <em>n</em>) 次哈希
+      <span class="lbl">改任何一个叶子，根都会变 —— 这是绑定性</span>
+    </div>
+    <p>
+      FRI 的证明里，绝大部分字节都是 Merkle 路径。这也是 STARK 证明比 SNARK 大的直接原因：
+      <strong>它用 <code>log n</code> 条路径替代了一次配对</strong>。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">一个容易忽略的细节</span>
+        <p>
+          哈希 <code>H(left ‖ right)</code> 里的拼接必须<strong>无歧义</strong>。
+          如果 <code>left</code> 和 <code>right</code> 长度可变，不同的树结构可能产生相同的字节串。
+          标准做法是固定长度，或者加域分隔符。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>ZK-friendly 哈希：为什么不用 SHA-256</h2>
+    <p class="lead">
+      这是个反直觉的工程事实：<strong>SHA-256 在电路里极其昂贵</strong>。
+    </p>
+    <p>
+      SHA-256 是位运算的堆叠：移位、异或、与、旋转。每个 32 位字要 64 轮。
+      把它翻译成算术电路，需要把每个比特拆开单独约束 —— 一次 SHA-256 约 <strong>2–3 万条约束</strong>。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">哈希</th><th style="width:170px">电路约束数（约）</th><th>设计取向</th></tr></thead>
+        <tbody>
+          <tr><td>SHA-256</td><td>20,000–30,000</td><td>为 CPU 优化（位运算快）</td></tr>
+          <tr><td>Poseidon</td><td>~200–400</td><td>为算术电路优化（只用加法和乘方）</td></tr>
+          <tr><td>Rescue / Rescue-Prime</td><td>~300–500</td><td>同上，安全性论证更保守</td></tr>
+          <tr><td>MiMC</td><td>~100–200</td><td>最简单，但安全性边界较窄</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      差距是<strong>两个数量级</strong>。所以 ZK 系统内部几乎都用 Poseidon 这类「代数哈希」，
+      只在需要与外部世界交互时（比如验证以太坊签名）才用 SHA-256。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">代价：安全分析历史短</span>
+        <p>
+          Poseidon 2019 年才提出，密码分析历史远不如 SHA-256 的二十年。
+          已经出现过针对简化轮数的攻击，实际部署需要留足安全余量（多跑几轮）。
+          <strong>「快」和「被充分研究」在这里是矛盾的。</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>长度扩展与域分隔：两个真实的坑</h2>
+    <h3>坑一：长度扩展攻击</h3>
+    <p>
+      SHA-256 用 Merkle–Damgård 结构：<code>H(m)</code> 的输出就是处理完 <code>m</code> 后的内部状态。
+      所以知道 <code>H(m)</code> 的人，可以在不知道 <code>m</code> 的情况下算出 <code>H(m ‖ pad ‖ m')</code>。
+    </p>
+    <div class="fml" style="font-size:13px">
+      给定 H(<em>m</em>) &nbsp;⟹&nbsp; 可以算出 H( <em>m</em> ‖ padding ‖ <em>m</em>' )
+      <span class="lbl">这在「把哈希当 MAC 用」时会致命，但在承诺场景里通常无害（因为攻击者改不了原文）</span>
+    </div>
+    <p>
+      防御方式很标准：用 HMAC，或者用 SHA-3/BLAKE3 这类不具长度扩展性的结构。
+    </p>
+
+    <h3>坑二：transcript 缺少域分隔</h3>
+    <p>
+      如果两个不同协议用同样的方式构造挑战，攻击者可以把 A 协议的证明搬到 B 协议里。
+      防御方式是在哈希输入里加入<strong>协议标识和版本号</strong>：
+    </p>
+    <div class="fml" style="font-size:12.5px">
+      <em>c</em> = H( "my-protocol-v1" ‖ <em>vk</em> ‖ <em>x</em> ‖ <em>R</em> )
+      <span class="lbl">任何一个字节不同，挑战就完全不同</span>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">一句话原则</span>
+        <p>
+          <strong>凡是你不想让它们互相替换的东西，都要进哈希。</strong>
+          协议名、版本、验证密钥、公开输入、所有承诺 —— 少一个就是一个攻击面。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>哈希在 ZKP 里干三件事：生成挑战、承诺数据、打指纹。</li>
+        <li>三条性质强度递减：抗原像 2<sup>n</sup>、抗第二原像 2<sup>n</sup>、抗碰撞 2<sup>n/2</sup>。</li>
+        <li>随机预言机是<strong>假设</strong>，不是定理。安全性证明都在这个模型下。</li>
+        <li>Merkle 树用 O(log n) 的路径承诺 O(n) 的数据。</li>
+        <li>Poseidon 比 SHA-256 快两个数量级，因为它是为算术电路设计的。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「哈希是加密的一种。」</span></div>
+      <div class="r"><i>✓</i><div>哈希<strong>不可逆</strong>，没有密钥，也不打算还原原文。加密是可逆的，有密钥。
+        两者目标完全相反。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「SHA-256 有 256 位安全。」</span></div>
+      <div class="r"><i>✓</i><div>碰撞强度只有 <strong>128 位</strong>（生日攻击）。
+        如果说「256 位安全」，指的是抗原像/第二原像。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「用了哈希就自动零知识。」</span></div>
+      <div class="r"><i>✓</i><div>哈希只提供「绑定性」和「伪随机性」。零知识需要<strong>模拟器</strong>，
+        那是协议结构的事，不是哈希能给的。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「ZK-friendly 哈希更快，所以应该全面替换 SHA-256。」</span></div>
+      <div class="r"><i>✓</i><div>只在<strong>电路内部</strong>更快。与外部系统交互（签名验证、TLS、区块链头）必须用标准哈希，
+        否则没人能验证你的数据。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="01-06-complexity.html">
+      <span class="pl">← 上一模块 · 01 · 06</span>
+      <span class="pt">复杂性理论：证明为什么能被压缩</span>
+    </a>
+    <a href="01-08-commitments.html">
+      <span class="pl">下一模块 · 01 · 08</span>
+      <span class="pt">承诺方案：先锁住、后打开 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

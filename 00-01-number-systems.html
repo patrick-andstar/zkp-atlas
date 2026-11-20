@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数系地图 · ℤ ℚ ℝ ℂ 𝔽 到底是什么关系 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">数系地图</div>
+  <div class="side-s">00 · Number Systems</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这一页要解决什么</a>
+    <a href="#s2"><span>2</span>数是一次次「补漏」长出来的</a>
+    <a href="#s3"><span>3</span>ℂ 之后走不下去了</a>
+    <a href="#s4"><span>4</span>三个必备工具</a>
+    <a href="#s5"><span>5</span>裴蜀定理</a>
+    <a href="#s6"><span>6</span>手算一遍</a>
+    <a href="#s7"><span>7</span>集合与多重集</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="index.html">← 图谱首页</a>
+    <a href="00-02-groups.html">下一模块 · 群 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>这一页要解决什么</a></li>
+      <li><a href="#s2"><span>2</span>数系怎么长出来</a></li>
+      <li><a href="#s3"><span>3</span>ℂ 之后走不下去</a></li>
+      <li><a href="#s4"><span>4</span>三个必备工具</a></li>
+      <li><a href="#s5"><span>5</span>裴蜀定理</a></li>
+      <li><a href="#s6"><span>6</span>手算一遍</a></li>
+      <li><a href="#s7"><span>7</span>集合与多重集</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>00 零基础前置</span><span>/</span><b>00 · 01</b></div>
+
+  <header>
+    <h1>数系地图：那些花体字母到底是什么</h1>
+    <p class="tagline">
+      论文里到处是 <code>ℤ</code>、<code>ℚ</code>、<code>ℝ</code>、<code>ℂ</code>、<code>𝔽</code>。
+      它们不是五种不同的数学，是同一件事的五个版本 —— <strong>「允许你做哪些运算」的五个答案</strong>。
+      这一页把它们的关系理顺，你后面看到 <code>𝔽<sub>p</sub></code> 就不会发懵。
+    </p>
+    <div class="meta">
+      <span class="hot">零基础起点</span>
+      <span>≈ 16 min</span>
+      <span>难度 1 / 5</span>
+      <span>前置：无</span>
+      <span>被用于：本层全部 · 01 · 01 · 02 · 03</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这一页要解决什么</h2>
+    <p class="lead">
+      你可能已经发现，ZKP 的文章里从不直接写「数字」，而是写「<code>𝔽<sub>p</sub></code> 里的元素」。
+      这不是装腔。因为在不同的数系里，同一个算式的答案是<strong>不一样的</strong>。
+    </p>
+    <p>
+      举个最直接的例子。同样是 <code>3 − 5</code>：
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">在哪个数系</th><th style="width:150px">答案</th><th>为什么</th></tr></thead>
+        <tbody>
+          <tr><td>自然数 ℕ</td><td><strong>算不了</strong></td><td>结果不在集合里，这叫「不封闭」</td></tr>
+          <tr><td>整数 ℤ</td><td><code>−2</code></td><td>补上了负数，减法随便做</td></tr>
+          <tr><td>模 7 的余数 𝔽<sub>7</sub></td><td><code>5</code></td><td><code>3−5 = −2</code>，再加 7 转回来</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      三个答案，没有哪个「更对」。它们属于不同的游戏，规则不同。
+      <strong>读 ZKP 论文时看不懂公式，八成就卡在这里 —— 不是算错了，是不知道现在在玩哪个游戏。</strong>
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">这句话值得抄下来</span>
+        <p>
+          一个数系 = 一个集合 + 一组允许的运算。<strong>集合决定「有哪些数」，运算决定「能做什么」。</strong>
+          后面所有「群」「环」「域」的定义，都只是在这两件事上加不同强度的要求。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>数是一次次「补漏」长出来的</h2>
+    <p class="lead">
+      数学史上有条很清晰的线：<strong>每发现一个解不出来的方程，就造一批新数把它塞进去。</strong>
+      这就是数系扩张。
+    </p>
+    <p>按顺序走一遍，注意每一步「新造了什么」和「解决了哪个方程」：</p>
+
+    <div class="steps">
+      <div class="st">
+        <div class="d">ℕ</div>
+        <h4>自然数：用来数东西</h4>
+        <p><code>0, 1, 2, 3, …</code>。加法够用，但 <code>x + 5 = 3</code> <strong>无解</strong> —— 因为没有「欠 2 个」这种东西。</p>
+      </div>
+      <div class="st">
+        <div class="d">ℤ</div>
+        <h4>整数：为了减法</h4>
+        <p>造出负数，<code>x + 5 = 3</code> 得 <code>x = −2</code>。现在减法永远能做。<br>
+        但 <code>3x = 2</code> 又无解了 —— 没有「三分之二」。</p>
+      </div>
+      <div class="st">
+        <div class="d">ℚ</div>
+        <h4>有理数：为了除法</h4>
+        <p>造出分数 <code>p/q</code>。<code>3x = 2</code> 得 <code>x = 2/3</code>。四则运算全通了（除数不为 0）。<br>
+        但 <code>x² = 2</code> 无解 —— 因为 <code>√2</code> 不是分数。</p>
+      </div>
+      <div class="st">
+        <div class="d">ℝ</div>
+        <h4>实数：为了开方和「连续」</h4>
+        <p>把有理数之间的所有「洞」填满，得到一条连续的线。<code>√2</code>、<code>π</code>、<code>e</code> 都在里面。<br>
+        但 <code>x² = −1</code> 还是无解 —— 任何数的平方都非负。</p>
+      </div>
+      <div class="st">
+        <div class="d">ℂ</div>
+        <h4>复数：为了负数开方</h4>
+        <p>硬造一个 <code>i</code>，规定 <code>i² = −1</code>。于是 <code>x² = −1</code> 有解。<br>
+        <strong>而且到这里就封顶了</strong> —— 任何多项式方程在 ℂ 里都有解。</p>
+      </div>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:60px">符号</th><th style="width:110px">名字</th><th>补上了什么</th><th style="width:210px">典型元素</th></tr></thead>
+        <tbody>
+          <tr><td><code>ℕ</code></td><td>自然数</td><td>数数</td><td>0, 1, 2, 3, …</td></tr>
+          <tr><td><code>ℤ</code></td><td>整数</td><td>减法（负数）</td><td>…, −2, −1, 0, 1, 2, …</td></tr>
+          <tr><td><code>ℚ</code></td><td>有理数</td><td>除法（分数）</td><td>1/2, −3/7, 5</td></tr>
+          <tr><td><code>ℝ</code></td><td>实数</td><td>极限（连续）</td><td>√2, π, e</td></tr>
+          <tr><td><code>ℂ</code></td><td>复数</td><td>负数开方</td><td>3 + 4i</td></tr>
+          <tr><td><code>𝔽<sub>p</sub></code></td><td>有限域</td><td><strong>把数「圈」成有限个</strong></td><td>0, 1, …, p−1</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">前五行是「往上长」，最后一行不是 —— 它换了个方向。</p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>走到 ℂ 之后，这条路就到头了</h2>
+    <p>
+      实数 → 复数，是为了让 <code>x² = −1</code> 有解。那能不能再往上长，让 <code>ℂ</code> 里解不出来的方程也有解？
+    </p>
+    <p>
+      <strong>不用了。</strong> 有个定理（代数基本定理）说：任何多项式方程在 ℂ 里一定有解，而且次数是 n 就有 n 个根（算上重根）。
+      ℂ 已经是「终点」，再扩也扩不出新东西。<br>
+      这个性质叫<strong>代数闭包</strong>。
+    </p>
+    <p>
+      那 ZKP 为什么不直接用 ℂ？因为<strong>计算机存不下</strong>。
+      <code>π</code> 是无限不循环小数，你没法在内存里精确保存它，更没法做「精确相等」的判断。
+      浮点误差会让「验证通过 / 不通过」变成一个概率问题 —— 密码学不能接受这个。
+    </p>
+    <p>
+      所以 ZKP 走了<strong>另一条路</strong>：不往「更大」扩，而是往「更小」收 ——
+      只要<strong>有限个</strong>数，但保证四则运算做得和实数一样顺。
+    </p>
+
+    <div style="margin:26px 0 30px;padding:26px 20px;background:#fff;border:1px solid var(--rule);overflow-x:auto">
+      <svg viewBox="0 0 660 250" style="width:100%;min-width:540px;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#7C8894"/>
+          </marker>
+          <marker id="ar2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#A6432B"/>
+          </marker>
+        </defs>
+        <!-- 上行：往上扩 -->
+        <text x="0" y="14" font-family="monospace" font-size="10" fill="#7C8894" letter-spacing="1.5">路线 A · 往上扩（为了解方程）</text>
+        <g font-family="monospace" font-size="13">
+          <rect x="0" y="36" width="66" height="40" fill="#FAF7F0" stroke="#E2DCD0"/>
+          <text x="33" y="61" text-anchor="middle" fill="#16202A">ℕ</text>
+          <rect x="112" y="36" width="66" height="40" fill="#FAF7F0" stroke="#E2DCD0"/>
+          <text x="145" y="61" text-anchor="middle" fill="#16202A">ℤ</text>
+          <rect x="224" y="36" width="66" height="40" fill="#FAF7F0" stroke="#E2DCD0"/>
+          <text x="257" y="61" text-anchor="middle" fill="#16202A">ℚ</text>
+          <rect x="336" y="36" width="66" height="40" fill="#FAF7F0" stroke="#E2DCD0"/>
+          <text x="369" y="61" text-anchor="middle" fill="#16202A">ℝ</text>
+          <rect x="448" y="36" width="66" height="40" fill="#E9F0F5" stroke="#12384F"/>
+          <text x="481" y="61" text-anchor="middle" fill="#12384F" font-weight="700">ℂ</text>
+          <text x="530" y="61" font-family="sans-serif" font-size="11" fill="#55703F">终点 · 代数闭包</text>
+        </g>
+        <g stroke="#7C8894" stroke-width="1" marker-end="url(#ar)">
+          <line x1="68" y1="56" x2="106" y2="56"/>
+          <line x1="180" y1="56" x2="218" y2="56"/>
+          <line x1="292" y1="56" x2="330" y2="56"/>
+          <line x1="404" y1="56" x2="442" y2="56"/>
+        </g>
+        <g font-family="sans-serif" font-size="9" fill="#7C8894" text-anchor="middle">
+          <text x="87" y="30">减</text><text x="199" y="30">除</text><text x="311" y="30">开方</text><text x="423" y="30">i</text>
+        </g>
+
+        <!-- 分隔 -->
+        <line x1="0" y1="106" x2="660" y2="106" stroke="#EDE8DC" stroke-dasharray="3 4"/>
+
+        <!-- 下行：往回收 -->
+        <text x="0" y="134" font-family="monospace" font-size="10" fill="#7C8894" letter-spacing="1.5">路线 B · 往回收（ZKP 走的）</text>
+        <g font-family="monospace" font-size="13">
+          <rect x="0" y="152" width="66" height="40" fill="#FAF7F0" stroke="#E2DCD0"/>
+          <text x="33" y="177" text-anchor="middle" fill="#16202A">ℤ</text>
+          <rect x="112" y="152" width="66" height="40" fill="#FAF7F0" stroke="#E2DCD0"/>
+          <text x="145" y="177" text-anchor="middle" fill="#16202A">ℚ</text>
+          <rect x="224" y="152" width="66" height="40" fill="#FAF7F0" stroke="#E2DCD0"/>
+          <text x="257" y="177" text-anchor="middle" fill="#16202A">ℝ</text>
+          <rect x="336" y="152" width="66" height="40" fill="#FAF7F0" stroke="#E2DCD0"/>
+          <text x="369" y="177" text-anchor="middle" fill="#16202A">ℂ</text>
+        </g>
+        <line x1="404" y1="172" x2="466" y2="172" stroke="#A6432B" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <g>
+          <rect x="470" y="152" width="112" height="40" fill="#F8ECE7" stroke="#A6432B" stroke-width="1.5"/>
+          <text x="526" y="171" text-anchor="middle" font-family="monospace" font-size="14" fill="#A6432B" font-weight="700">𝔽<tspan font-size="9.5" dy="3">p</tspan></text>
+          <text x="526" y="185" text-anchor="middle" font-family="sans-serif" font-size="8.5" fill="#A6432B">只有 p 个数</text>
+        </g>
+        <text x="0" y="228" font-family="sans-serif" font-size="11" fill="#4A5764">「有限」不等于「简陋」—— 只要 p 是素数，加减乘除的规则和 ℝ 完全一样。</text>
+      </svg>
+    </div>
+
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">关键区别，一句话</span>
+        <p>
+          <code>ℂ</code> 有<strong>无穷多个</strong>元素，四则运算齐全。<br>
+          <code>𝔽<sub>p</sub></code> 只有<strong>p 个</strong>元素，四则运算也齐全。<br>
+          「元素个数」和「运算能力」是两件独立的事 —— 这是初学者最大的误解来源。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>三个必须握在手里的工具</h2>
+    <p>
+      01 · 01 那页直接从「模 p」讲起，但它默认你会三样东西。这里补上。
+    </p>
+
+    <h3>工具一：整除</h3>
+    <p>
+      <code>a | b</code> 读作「a 整除 b」，意思是 <code>b ÷ a</code> 没有余数，也就是存在整数 <code>k</code> 使 <code>b = a·k</code>。
+    </p>
+    <div class="fml">
+      3 | 12 &nbsp;&nbsp;<span class="op">✓</span> &nbsp;&nbsp;因为 12 = 3 × 4
+      <span class="lbl">读作「3 整除 12」，意思是 12 能被 3 除尽 —— 方向和 3/12 相反，最容易读反的就是这里</span>
+    </div>
+    <p>
+      <code>3 | 12</code> 成立，<code>5 | 12</code> 不成立（12 = 5×2 + 2，余 2）。
+      这个符号在论文里出现频率极高，尤其是在讲「多项式整除」的时候 —— 那里的 <code>a</code> 不是数字，是多项式。
+    </p>
+
+    <h3>工具二：素数</h3>
+    <p>
+      素数 = 大于 1，且<strong>只有 1 和它自己</strong>能整除它的整数。
+      2、3、5、7、11、13、17、19、23、29 都是。4 不是（2 | 4），9 不是（3 | 9），1 也不是（定义上排除）。
+    </p>
+    <p>
+      素数在密码学里之所以重要，是因为它<strong>不能再被拆</strong>。
+      你可以把 12 拆成 3×4 再拆成 3×2×2，但 7 拆不动。这种「不可分」的性质，是后面所有「逆元一定存在」结论的根基。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">一个反直觉的事实</span>
+        <p>
+          素数有无穷多个 —— 但没有一个已知公式能直接算出「第 n 个素数」。
+          实际用的素数都是随机生成再测的（Miller–Rabin）。
+          ZKP 里的 <code>p</code> 通常是 254 位，也就是十进制约 77 位数。
+        </p>
+      </div>
+    </div>
+
+    <h3>工具三：最大公约数 gcd</h3>
+    <p>
+      <code>gcd(a, b)</code> = 能同时整除 a 和 b 的最大正整数。
+      如果 <code>gcd(a, b) = 1</code>，就说 a 和 b <strong>互素</strong>。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:180px">算式</th><th style="width:110px">结果</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>gcd(12, 18)</code></td><td><code>6</code></td><td>公因子有 1,2,3,6，最大是 6</td></tr>
+          <tr><td><code>gcd(7, 12)</code></td><td><code>1</code></td><td>互素。7 是素数，只要不整除 12 就必然互素</td></tr>
+          <tr><td><code>gcd(12, 18, 30)</code></td><td><code>6</code></td><td>可以多个一起取</td></tr>
+          <tr><td><code>gcd(p, k)</code> 其中 p 素数、0&lt;k&lt;p</td><td><code>1</code></td><td><strong>这一行是有限域能成立的前提</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      最后一行值得盯着看三秒：<strong>在素数 p 的世界里，任何比 p 小的正整数都和 p 互素。</strong>
+      因为 p 没有别的因子可分。这就是「素数表盘上每个数都能求逆」的全部原因 —— 下一节给证明。
+    </p>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>裴蜀定理：为什么逆元一定存在</h2>
+    <p class="lead">
+      01 · 01 说「素数模下每个非零数都有逆元」，然后直接教你怎么算。
+      但没回答<strong>为什么一定有</strong>。答案叫裴蜀定理（Bézout's identity）。
+    </p>
+    <div class="fml">
+      gcd(<em>a</em>, <em>b</em>) = <em>a</em>·<em>x</em> + <em>b</em>·<em>y</em> &nbsp;&nbsp;（存在这样的整数 <em>x</em>, <em>y</em>）
+      <span class="lbl">两个数的最大公约数，一定能写成这两个数的「整数系数组合」</span>
+    </div>
+    <p>先在普通整数里看一眼，找 <code>gcd(12, 18) = 6</code> 的组合：</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      12 × (−1) + 18 × 1 = 6 &nbsp;&nbsp;<span style="color:#7C8894">← 找到了</span><br>
+      12 × 2 &nbsp;+ 18 × (−1) = 6 &nbsp;<span style="color:#7C8894">← 还有别的解，不唯一</span>
+    </div>
+
+    <h3>把它套到「逆元」上</h3>
+    <p>
+      现在让 <code>a</code> 是任意一个小于素数 <code>p</code> 的正整数。因为 <code>p</code> 是素数，<code>gcd(a, p) = 1</code>。
+      代进裴蜀定理：
+    </p>
+    <div class="fml">
+      <em>a</em>·<em>x</em> + <em>p</em>·<em>y</em> = 1
+      <span class="lbl">对某个整数 x, y 成立</span>
+    </div>
+    <p>
+      两边同时对 <code>p</code> 取余。<code>p·y</code> 是 p 的倍数，余 0，直接消失：
+    </p>
+    <div class="fml">
+      <em>a</em>·<em>x</em> ≡ 1 ( mod <em>p</em> )
+      <span class="lbl">这个 x 就是 a 的逆元</span>
+    </div>
+    <p>
+      <strong>证明完毕。</strong>注意这个论证的力量：它没有「算」出逆元，只是<strong>证明了逆元一定存在</strong>。
+      至于怎么把那个 <code>x</code> 找出来，才是扩展欧几里得算法干的事（01 · 01 有）。
+    </p>
+
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">反过来看：为什么合数模就不行</span>
+        <p>
+          取 <code>p = 12</code>，问 6 有没有逆元。要 <code>6x ≡ 1 (mod 12)</code>。<br>
+          但 <code>gcd(6, 12) = 6 ≠ 1</code>，裴蜀定理说 <code>6x + 12y</code> 只能取到 6 的倍数，永远取不到 1。<br>
+          <strong>不是「算不出来」，是「根本不存在」。</strong> 这就是「域要求 p 是素数」的真正原因。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>手算一遍：三个数系，同一个算式</h2>
+    <p>算 <code>(9 + 4) × 5</code>，分别在 ℤ、𝔽<sub>7</sub>、𝔽<sub>13</sub> 里做。</p>
+
+    <div class="steps">
+      <div class="st">
+        <div class="d">ℤ</div>
+        <h4>整数里</h4>
+        <p><code>9 + 4 = 13</code>，<code>13 × 5 = 65</code>。<strong>答案 65</strong>，没有悬念。</p>
+      </div>
+      <div class="st">
+        <div class="d">7</div>
+        <h4>𝔽<sub>7</sub> 里</h4>
+        <p>
+          先各自取余：<code>9 ≡ 2</code>，<code>4 ≡ 4</code>，<code>5 ≡ 5</code>。<br>
+          <code>(2 + 4) = 6</code>，<code>6 × 5 = 30</code>，<code>30 mod 7 = 2</code>。<strong>答案 2</strong>。<br>
+          验算：<code>65 mod 7 = 2</code> ✓ 对得上 —— 这叫「先算后取余」和「先取余再算」等价。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">13</div>
+        <h4>𝔽<sub>13</sub> 里</h4>
+        <p>
+          <code>9 + 4 = 13 ≡ 0</code>，<code>0 × 5 = 0</code>。<strong>答案 0</strong>。<br>
+          这里出现了「非零数加出 0」—— <strong>域里 0 不代表「没有」，只代表「表盘转满一圈」</strong>。
+        </p>
+      </div>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">数系</th><th style="width:120px">中间结果</th><th style="width:110px">最终答案</th><th>直觉</th></tr></thead>
+        <tbody>
+          <tr><td><code>ℤ</code></td><td>13</td><td><strong>65</strong></td><td>数越来越大，永不回头</td></tr>
+          <tr><td><code>𝔽<sub>7</sub></code></td><td>6</td><td><strong>2</strong></td><td>7 小时制的钟</td></tr>
+          <tr><td><code>𝔽<sub>13</sub></code></td><td>0</td><td><strong>0</strong></td><td>13 小时制，正好转满一圈</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      同一个表达式，三个答案，全都「正确」。所以论文里写公式之前，<strong>第一件事永远是声明在哪个域里</strong>。
+      看到没有声明域的文章，可以直接怀疑作者不严谨。
+    </p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>集合与多重集：为什么 lookup 需要后者</h2>
+    <p class="lead">
+      这一节是给 02 · 03 查找论证打底的。那里一页出现 16 次「多重集」，
+      如果不知道它和普通集合的差别，整页都读不顺。
+    </p>
+
+    <h3>集合：无序、不重复</h3>
+    <div class="fml">
+      { 1, 2, 3 } = { 3, 2, 1 } = { 1, 1, 2, 3 }
+      <span class="lbl">顺序不同算同一个；写两遍 1 也不改变它 —— 集合只问「有没有」，不问「有几个」</span>
+    </div>
+    <p>
+      这就是集合的两个铁律：<strong>无序</strong>、<strong>元素不重复</strong>。
+      写成 <code>{1,1,2}</code> 是合法的，但它<strong>等于</strong> <code>{1,2}</code>。
+    </p>
+
+    <h3>多重集：无序，但重复有意义</h3>
+    <div class="fml">
+      { 1, 1, 2 } &nbsp;≠&nbsp; { 1, 2 } &nbsp;&nbsp;<span class="op">（当作多重集时）</span>
+      <span class="lbl">元素可以重复，而且「重复几次」是信息的一部分。仍然无序</span>
+    </div>
+    <p>
+      多重集（multiset）就是「允许重复的集合」。有些论文用方括号 <code>[1,1,2]</code> 区分，
+      有些直接加粗 <code>{1,1,2}</code>，但更多时候就是普通花括号 ——
+      <strong>要靠上下文判断它此刻是集合还是多重集</strong>。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px"></th><th style="width:210px">集合 {1,2}</th><th>多重集 {1,1,2}</th></tr></thead>
+        <tbody>
+          <tr><td>1 出现几次</td><td>1 次</td><td><strong>2 次</strong></td></tr>
+          <tr><td>和 {1,2} 相等吗</td><td>相等</td><td><strong>不相等</strong></td></tr>
+          <tr><td>顺序有意义吗</td><td>没有</td><td>没有</td></tr>
+          <tr><td>元素个数</td><td>2</td><td><strong>3</strong>（计重数）</td></tr>
+          <tr><td>典型用途</td><td>「这个值在表里吗」</td><td>「每个值各出现几次，两边一致吗」</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>为什么 lookup 论证非要它不可</h3>
+    <p>
+      假设你要证明「我的 1000 个查询值，每一个都来自一张小表（比如 16 行）」。听起来用集合就够了 ——
+      但问题是：<strong>如果同一个值被查了 500 次呢？</strong>
+    </p>
+    <p>
+      用集合的话，这 500 次会被压缩成 1 个元素，<strong>「查了几次」这个信息就丢了</strong>。
+      证明者可以偷偷改掉其中几次而不被发现。
+    </p>
+    <div class="fml">
+      查询序列 ( a, a, a, b ) → 作为集合是 { a, b }
+      <span class="lbl">三次 a 变成了一次 —— 攻击者只要改掉两个 a，集合还是 {a,b}，验证照样过</span>
+    </div>
+    <p>
+      所以 lookup 论证的正式表述是：<strong>查询多重集 = 表多重集</strong>（在补足重复次数之后）。
+      证明者必须让<strong>每个元素的重数</strong>都对上，才算通过。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">实践中怎么比较两个多重集</span>
+        <p>
+          直接排序再逐个比，代价太高（要在电路里做排序）。实际用的是<strong>随机线性组合</strong>：
+          给每个元素配一个随机权重 <code>γ</code>，比较
+          <code>Σ 1/(γ + aᵢ)</code> 这类「指纹」。<br>
+          如果两个多重集不同，指纹相同的概率极小（又是 Schwartz–Zippel 那套）。
+          02 · 03 会用这个技巧，但你现在只需要知道<strong>「多重集相等 = 每个元素的重数都相等」</strong>。
+        </p>
+      </div>
+    </div>
+
+    <h3>顺带：笛卡尔积</h3>
+    <p>
+      <code>A × B</code> 读作「A 叉乘 B」，意思是<strong>所有有序对的集合</strong>：
+    </p>
+    <div class="fml">
+      { 1, 2 } × { x, y } = { (1,x), (1,y), (2,x), (2,y) }
+      <span class="lbl">每个 A 的元素配每个 B 的元素，配出来的对子有序：(1,x) ≠ (x,1)</span>
+    </div>
+    <p>
+      元素个数是两边相乘：<code>2 × 2 = 4</code>。
+      在 ZKP 里你会看到 <code>𝔾<sub>1</sub> × 𝔾<sub>2</sub> → 𝔾<sub>T</sub></code>，
+      意思是「配对函数吃一个 𝔾₁ 元素和一个 𝔾₂ 元素」—— 就是这里的笛卡尔积。
+    </p>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>数系 = <strong>集合 + 允许的运算</strong>。真正决定性质的是「运算能不能做」，不是「有多少个数」。</li>
+        <li>ℕ → ℤ → ℚ → ℝ → ℂ 这条链是「往上扩」，终点是 ℂ（代数闭包）。</li>
+        <li><code>𝔽<sub>p</sub></code> 不在那条链上，它是「往回收」：只要 p 个数，但四则运算齐全。</li>
+        <li><code>a | b</code> 是整除，<code>gcd(a,b)</code> 是最大公约数，<code>gcd = 1</code> 叫互素。</li>
+        <li>裴蜀定理 <code>ax + by = gcd(a,b)</code> 是「逆元一定存在」的原因，不是算法。</li>
+        <li>素数 p 下，所有 <code>0 &lt; a &lt; p</code> 都和 p 互素 ⟹ 全都有逆元 ⟹ 才能当域用。</li>
+        <li><strong>多重集</strong>允许元素重复，「重数」本身就是信息 —— lookup 论证必须用它，用集合会被绕过。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「ℂ 比 ℝ 大，所以 ℂ 更强；那 𝔽<sub>p</sub> 一定更弱。」</span></div>
+      <div class="r"><i>✓</i><div>强弱看的是<strong>运算完整性</strong>，不是元素个数。
+        <code>𝔽<sub>p</sub></code> 和 <code>ℝ</code> 一样能做加减乘除，<code>ℤ</code> 反而不行（除法出不来）。
+        密码学里恰恰需要「小」—— 小才存得下、算得快。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「素数就是奇数。」</span></div>
+      <div class="r"><i>✓</i><div>2 是素数，但不是奇数。9 是奇数，但不是素数。
+        这两个概念经常被混，而 ZKP 里的 p 通常是<strong>大奇数素数</strong>，容易让人误以为「素数 = 奇数」。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「裴蜀定理能算出逆元，所以它就是扩展欧几里得。」</span></div>
+      <div class="r"><i>✓</i><div>定理只说「<strong>存在</strong>」，是存在性证明。
+        算法负责「<strong>构造</strong>」，是构造性方法。
+        数学里这两件事分得很清 —— 读到「存在唯一的 x 使得…」时，别急着问「怎么算」，作者可能根本不在乎。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「元素个数是 p，所以 p 就是域的大小。」</span></div>
+      <div class="r"><i>✓</i><div>只在<strong>素域</strong> <code>𝔽<sub>p</sub></code> 里成立。
+        扩域 <code>𝔽<sub>p²</sub></code> 有 <code>p²</code> 个元素，但它的「特征」仍然是 p。
+        特征（characteristic）和大小（order）是两个不同的数。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="index.html">
+      <span class="pl">← 返回</span>
+      <span class="pt">图谱首页</span>
+    </a>
+    <a href="00-02-groups.html">
+      <span class="pl">下一模块 · 00 · 02</span>
+      <span class="pt">群：一个集合加一个运算 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

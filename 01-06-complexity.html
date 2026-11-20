@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>复杂性理论 · NP / IP / PCP / IOP | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">复杂性理论</div>
+  <div class="side-s">01 · Complexity Theory</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这个模块要解决什么问题</a>
+    <a href="#s2"><span>2</span>NP：见证</a>
+    <a href="#s3"><span>3</span>IP：交互的力量</a>
+    <a href="#s4"><span>4</span>PCP 定理</a>
+    <a href="#s5"><span>5</span>IOP</a>
+    <a href="#s6"><span>6</span>和 SNARK 的对应</a>
+    <a href="#s7"><span>7</span>理论上限</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="01-05-coding-theory.html">← 上一模块 · 编码理论</a>
+    <a href="01-07-hash-rom.html">下一模块 · 哈希与随机预言机 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>这个模块要解决什么问题</a></li>
+      <li><a href="#s2"><span>2</span>NP</a></li>
+      <li><a href="#s3"><span>3</span>IP</a></li>
+      <li><a href="#s4"><span>4</span>PCP 定理</a></li>
+      <li><a href="#s5"><span>5</span>IOP</a></li>
+      <li><a href="#s6"><span>6</span>与 SNARK 的对应</a></li>
+      <li><a href="#s7"><span>7</span>理论上限</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>01 数学基础</span><span>/</span><b>01 · 06</b></div>
+
+  <header>
+    <h1>复杂性理论：证明为什么能被压缩</h1>
+    <p class="tagline">
+      「证明」在数学里是一串推理，在计算机科学里是一个<strong>可被高效检查的字符串</strong>。
+      把「检查」放松成「随机抽查」，能换来什么？答案是：证明可以短到与计算量无关。
+    </p>
+    <div class="meta">
+      <span>≈ 14 min</span>
+      <span>难度 3 / 5</span>
+      <span>前置：无（概念性）</span>
+      <span>被用于：理解 SNARK 的理论边界</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      日常语境里，证明是一段让人信服的论证。但在计算理论里，它必须被定义成
+      <strong>一个可以被机器检查的对象</strong>，否则没法讨论「多短」「多快」。
+    </p>
+    <p>最朴素的定义是：</p>
+    <div class="fml">
+      对语言 <em>L</em>，证明系统是一对算法 ( <em>P</em>, <em>V</em> )，满足：<br>
+      <strong>完备性</strong>：<em>x</em> ∈ <em>L</em> ⟹ <em>V</em>(<em>x</em>, <em>P</em>(<em>x</em>)) = 1<br>
+      <strong>可靠性</strong>：<em>x</em> ∉ <em>L</em> ⟹ 对任意 <em>P</em>*, <em>V</em>(<em>x</em>, <em>P</em>*(<em>x</em>)) = 0
+      <span class="lbl">V 是多项式时间的验证者；P 可以任意强（甚至无限算力）</span>
+    </div>
+    <p>
+      这个定义里，<code>V</code> 要读完整个证明。<strong>证明长度 = 验证时间</strong>。
+      想让它短，就得改定义。
+    </p>
+    <p>接下来四步，每一步都在放松一个约束，最终得到 SNARK 的理论原型。</p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>第一步：NP —— 允许「见证」</h2>
+    <div class="fml" style="font-size:13px">
+      <em>L</em> ∈ <strong>NP</strong> &nbsp;⟺&nbsp; 存在多项式时间验证器 <em>V</em>，使得<br>
+      <em>x</em> ∈ <em>L</em> &nbsp;⟺&nbsp; ∃<em>w</em>, |<em>w</em>| ≤ poly(|<em>x</em>|), &nbsp; <em>V</em>(<em>x</em>, <em>w</em>) = 1
+      <span class="lbl">w 叫「见证」（witness），就是那个「答案」</span>
+    </div>
+    <p>
+      例子：<strong>图的三染色</strong>。<code>x</code> 是一张图，<code>w</code> 是每个顶点的一个颜色。
+      验证者检查「每条边两端颜色不同」—— 这是多项式时间的。
+    </p>
+    <p>
+      NP 的关键：<strong>证明（见证）可以比计算过程短得多</strong>。
+      但要检查它，仍然要读完整个 <code>w</code>，所以验证时间是 <code>O(|w|)</code>。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">SNARK 要证的就是 NP 命题</span>
+        <p>
+          「我知道一个 w 使 R(x,w)=1」—— 这就是 NP 的定义。
+          所以 SNARK 的表达力上限就是 NP，不能说「证明任意数学猜想」。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>第二步：IP —— 允许「交互」</h2>
+    <p class="lead">
+      如果让验证者和证明者来回对话，验证者能验证的问题会变多吗？
+      直觉上应该不会 —— 对话只是把信息分批给。
+      但 1992 年 Shamir 证明了：<strong>会，而且多得多</strong>。
+    </p>
+    <div class="fml">
+      <strong>IP</strong> = <strong>PSPACE</strong>
+      <span class="lbl">交互式证明能验证的问题，恰好等于「多项式空间可解」的问题</span>
+    </div>
+    <p>
+      PSPACE 被认为远大于 NP（比如「这个棋局先手是否必胜」在 PSPACE 里，但不确定是否在 NP 里）。
+      所以交互确实增强了验证能力。
+    </p>
+    <h3>为什么交互有用</h3>
+    <p>
+      因为验证者可以<strong>随机提问</strong>，而证明者事先不知道问题。
+      如果证明者在撒谎，他很难在所有可能的提问下都自圆其说。
+    </p>
+    <p>
+      这就是「零知识」的技术基础：<a href="02-05-fiat-shamir.html">Schnorr 协议</a>里那个随机挑战 <code>c</code>，
+      就是验证者的提问权。没有它，证明者可以随便编。
+    </p>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>第三步：PCP —— 只查几个位置</h2>
+    <p class="lead">
+      1992 年同一年，另一个结果震动了整个领域：<strong>PCP 定理</strong>。
+      它说：任何 NP 证明都可以改写成一种特殊形式，使得验证者<strong>只读常数个位置</strong>就能判断真假。
+    </p>
+    <div class="fml" style="font-size:13px">
+      <strong>PCP 定理</strong>：&nbsp; NP = PCP[ <em>O</em>(log <em>n</em>) , <em>O</em>(1) ]
+      <span class="lbl">用 O(log n) 个随机比特，查询 O(1) 个位置，就能以高概率判断 x ∈ L</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">参数</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td><code>O(log n)</code></td><td>随机比特数。决定「有多少种可能的抽查模式」</td></tr>
+          <tr><td><code>O(1)</code></td><td>查询位置数。<strong>常数，与证明长度无关</strong></td></tr>
+          <tr><td>可靠性</td><td>如果命题为假，任何证明都会在至少一半的抽查模式下暴露</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      这个定理的意义：<strong>「验证」可以比「阅读」便宜得多</strong>。
+      你不需要读完整个证明，只需要随机戳几个位置。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">但 PCP 定理不是 SNARK</span>
+        <p>
+          PCP 是<strong>存在性</strong>结果：证明那个「改写后的证明」存在，但没给高效构造方法。
+          从 PCP 到实用 SNARK，中间隔了二十年的工程密码学（KZG、FRI、Groth16）。
+          <strong>理论上很美，直接用会很慢。</strong>
+        </p>
+      </div>
+    </div>
+
+    <h3>证明长度和查询次数是一对矛盾</h3>
+    <p>
+      PCP 定理说「查询常数个位置」，但没说这个常数是多少，也没说证明有多长。
+      实际上，要达到可接受的可靠性，证明长度往往是原始计算的<strong>多项式倍</strong>
+      （有些构造是 <code>n³</code> 甚至更高）。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">参数</th><th>理论构造</th><th>实用系统</th></tr></thead>
+        <tbody>
+          <tr><td>证明长度</td><td><code>poly(n)</code>，常数巨大</td><td><code>O(n)</code> 或更小</td></tr>
+          <tr><td>查询次数</td><td>常数（但可能上百）</td><td><code>log n</code> 或常数</td></tr>
+          <tr><td>验证时间</td><td>常数，但常数项大</td><td>毫秒级</td></tr>
+          <tr><td>能否直接实现</td><td>否（构造不高效）</td><td>是</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      这就是为什么 SNARK 不是「实现 PCP」，而是<strong>绕开 PCP，用 IOP + 承诺</strong>：
+      把「读一个超长字符串的某几个位置」换成「打开一个承诺的某几个位置」，
+      长度从 <code>poly(n)</code> 降到 <code>O(n)</code> 的承诺，再压到常数大小的证明。
+    </p>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>第四步：IOP —— 证明变成一个「预言机」</h2>
+    <p>
+      PCP 里证明是一串固定的比特，验证者去查它的某些位置。
+      但如果证明本身可以是<strong>一个函数</strong>（你给我输入，我返回值），表达能力会更强。
+    </p>
+    <div class="fml" style="font-size:13px">
+      <strong>IOP</strong>（Interactive Oracle Proof）：证明是一个预言机 <em>π</em>，<br>
+      验证者可以自适应地查询 <em>π</em>(<em>i</em>)，并根据结果决定下一个问题
+      <span class="lbl">PCP 是「非自适应」的特例；IOP 允许「问一步、看一步」</span>
+    </div>
+    <p>
+      STARK 本质上是 IOP + 哈希承诺：
+      <strong>多项式就是那个预言机，Merkle 树就是承诺，FRI 就是查询协议</strong>。
+    </p>
+
+    <h3>从「预言机」到「Merkle 树」：中间差了什么</h3>
+    <p>
+      IOP 里「查询 <code>π(i)</code>」是一个抽象动作，数学上假设它免费且可靠。
+      现实中没有免费的查询，必须用承诺把它实现出来：
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">IOP 里的抽象</th><th>现实中的实现</th><th style="width:150px">代价</th></tr></thead>
+        <tbody>
+          <tr><td>证明 <code>π</code> 是一个函数</td><td>把求值表建成 Merkle 树</td><td><code>O(n)</code> 哈希</td></tr>
+          <tr><td>查询 <code>π(i)</code></td><td>Merkle 路径 + 叶子值</td><td><code>O(log n)</code> 个哈希</td></tr>
+          <tr><td>验证者自适应提问</td><td>Fiat–Shamir 把问题变成哈希</td><td>一次哈希</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      这三步替换之后，IOP 从一个「信息论对象」变成了「可以在互联网上传输的协议」。
+      <strong>STARK 的全部工程复杂度，几乎都在这三层映射里。</strong>
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">模型</th><th>证明形式</th><th>验证方式</th><th>典型实现</th></tr></thead>
+        <tbody>
+          <tr><td>NP</td><td>字符串 w</td><td>读完整个 w</td><td>—</td></tr>
+          <tr><td>IP</td><td>交互对话</td><td>多轮问答</td><td>Schnorr、Groth16（交互版）</td></tr>
+          <tr><td>PCP</td><td>长字符串</td><td>随机查常数个位置</td><td>理论构造，无实用</td></tr>
+          <tr><td>IOP</td><td>预言机（函数）</td><td>自适应查询 + 承诺</td><td>STARK、FRI</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>这些理论和 SNARK 的对应关系</h2>
+    <p>把 SNARK 的每个零件映射回理论模型，会看得更清楚：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px">SNARK 里的东西</th><th>理论对应</th></tr></thead>
+        <tbody>
+          <tr><td>「我知道 w 使 R(x,w)=1」</td><td>NP 命题</td></tr>
+          <tr><td>随机挑战（Fiat–Shamir 的 c）</td><td>IP 里验证者的随机提问</td></tr>
+          <tr><td>多项式承诺 + 打开</td><td>PCP/IOP 里的「查询某个位置」</td></tr>
+          <tr><td>FRI 的折叠与抽查</td><td>低度测试 + PCP 的随机查询</td></tr>
+          <tr><td>简洁性（常数大小）</td><td>PCP 定理的 O(1) 查询</td></tr>
+          <tr><td>可靠性（1/p 量级）</td><td>PCP 的 soundness error</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      一句话：<strong>SNARK 是 PCP/IOP 的密码学工程实现</strong>。
+      理论告诉你「可以只查几个点」，工程告诉你「怎么让那几个点不可伪造」。
+    </p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>理论上限：有些事做不到</h2>
+    <p>复杂性理论不只给希望，也给限制。三条值得记住：</p>
+    <ul>
+      <li>
+        <strong>SNARK 只能证 NP</strong>。想证「这个程序会停机」，如果问题本身不可判定，就没有电路能表达它。
+      </li>
+      <li>
+        <strong>非常数大小的证明不可能覆盖任意计算</strong>。简洁性是有代价的：要么需要可信设置，
+        要么依赖强假设，要么证明变大。
+      </li>
+      <li>
+        <strong>零知识不等于「什么信息都没有」</strong>。它只保证「不泄露超出命题为真的信息」——
+        公开输入本身仍然是公开的。
+      </li>
+    </ul>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">一个常被问的问题</span>
+        <p>
+          「能不能用 SNARK 证明 P ≠ NP？」<strong>不能</strong>。
+          因为 P ≠ NP 不是一个「存在短见证」的命题 —— 它是对所有算法的断言，不是 NP 的形式。
+          这也说明 SNARK 的边界很清晰：它处理的是「有具体解的验证问题」。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>NP = 有短见证、可高效验证的命题。SNARK 的适用范围就是 NP。</li>
+        <li>IP = PSPACE：交互能显著增强验证能力。</li>
+        <li>PCP 定理：任何 NP 证明都能改写成「只查常数个位置」的形式。</li>
+        <li>IOP 把证明变成预言机，是 STARK 的理论基础。</li>
+        <li>SNARK = PCP/IOP + 密码学承诺，把理论构造变成可实现的协议。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「SNARK 可以证明任何数学定理。」</span></div>
+      <div class="r"><i>✓</i><div>只能证明<strong>NP 命题</strong>，而且要先把命题写成电路。
+        「黎曼猜想」这种对无穷多对象的断言，不在 NP 里。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「PCP 定理可以直接拿来写代码。」</span></div>
+      <div class="r"><i>✓</i><div>PCP 的证明长度是<strong>多项式级但常数巨大</strong>，构造也不高效。
+        实用系统都用 IOP + 承诺绕开它。<strong>理论保证存在，工程负责让它跑得动。</strong></div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「交互式证明比非交互式更强。」</span></div>
+      <div class="r"><i>✓</i><div>表达力上 IP ⊇ NP，但<strong>非交互式（NIZK）在工程上不可替代</strong>：
+        可上链、可转发、可审计。Fiat–Shamir 让两者在随机预言机模型下等价。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「复杂性理论只是理论，对调参没用。」</span></div>
+      <div class="r"><i>✓</i><div>它决定了<strong>哪些优化是可能的</strong>。比如「证明大小能不能做到 O(1)」这个问题，
+        答案依赖底层假设；不理解理论，就会在不可能的方向上浪费时间。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="01-05-coding-theory.html">
+      <span class="pl">← 上一模块 · 01 · 05</span>
+      <span class="pt">编码理论：FRI 靠距离判断次数</span>
+    </a>
+    <a href="01-07-hash-rom.html">
+      <span class="pl">下一模块 · 01 · 07</span>
+      <span class="pt">哈希与随机预言机：Fiat–Shamir 的合法性来源 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

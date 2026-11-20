@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>算术化 · 从程序到约束系统 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">算术化</div>
+  <div class="side-s">02 · Arithmetization</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>要解决的问题</a>
+    <a href="#s2"><span>2</span>直觉：三层翻译</a>
+    <a href="#s3"><span>3</span>核心概念与符号</a>
+    <a href="#s4"><span>4</span>R1CS 的形式定义</a>
+    <a href="#s5"><span>5</span>完整推导：x³+x+5</a>
+    <a href="#s6"><span>6</span>为什么不能有高次项</a>
+    <a href="#s7"><span>7</span>矩阵视角</a>
+    <a href="#s8"><span>8</span>从 R1CS 到 QAP</a>
+    <a href="#s9"><span>9</span>三种算术化对比</a>
+    <a href="#s10"><span>10</span>小结</a>
+    <a href="#s11"><span>11</span>常见误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="00-06-linear-algebra.html">← 00 · 06 线性代数（本页前置）</a>
+    <a href="02-02-polynomial-commitments.html">下一模块 · 多项式承诺 →</a>
+    <a href="index.html">全部 33 个模块</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>要解决的问题</a></li>
+      <li><a href="#s2"><span>2</span>直觉：三层翻译</a></li>
+      <li><a href="#s3"><span>3</span>核心概念与符号</a></li>
+      <li><a href="#s4"><span>4</span>R1CS 的形式定义</a></li>
+      <li><a href="#s5"><span>5</span>完整推导</a></li>
+      <li><a href="#s6"><span>6</span>为什么不能有高次项</a></li>
+      <li><a href="#s7"><span>7</span>矩阵视角</a></li>
+      <li><a href="#s8"><span>8</span>从 R1CS 到 QAP</a></li>
+      <li><a href="#s9"><span>9</span>三种算术化对比</a></li>
+      <li><a href="#s10"><span>10</span>小结</a></li>
+      <li><a href="#s11"><span>11</span>常见误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>02 证明构造</span><span>/</span><b>02 · 01</b></div>
+
+  <header>
+    <h1>算术化：把程序变成一堆乘法等式</h1>
+    <p class="tagline">
+      SNARK 看不懂 <code>if</code>、<code>while</code> 和数组下标。它只认一种东西：
+      有限域上的多项式等式。算术化就是那个翻译层 —— 翻译得好不好，直接决定电路有多大、证明有多慢、以及会不会留下安全漏洞。
+    </p>
+    <div class="meta">
+      <span class="hot">核心模块</span>
+      <span>≈ 20 min</span>
+      <span>难度 4 / 5</span>
+      <span>前置：00 · 06 线性代数 · 有限域</span>
+      <span>后续：QAP · 多项式承诺</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      你写了一段程序，声称「给定输入 x，它输出 42」。你想在不重跑这段程序的前提下，让别人相信这句话。
+      但 SNARK 无法直接处理这段程序 —— 它没有「循环」「分支」「内存」这些概念。
+    </p>
+    <p>
+      它只有一种能力：验证某个<strong>多项式恒等式</strong>在随机点上成立。所以中间必须有一次翻译：
+      <strong>程序 → 算术电路 → 约束系统</strong>。这个翻译过程就叫算术化（arithmetization）。
+    </p>
+    <p>
+      这一步有三重后果，而且都是不可逆的：
+    </p>
+    <ul>
+      <li><strong>规模</strong>：一行 Rust 代码可能展开成上千条约束。翻译方式直接决定证明要跑 3 秒还是 30 秒。</li>
+      <li><strong>表达力</strong>：某些运算（查表、位运算、椭圆曲线加法）在一种格式里很便宜，在另一种里贵得离谱。</li>
+      <li><strong>安全</strong>：翻译漏掉一条约束，密码学层面完全正常，业务规则却被绕过了。这是真实事故里最常见的一类。</li>
+    </ul>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">先记住这句话</span>
+        <p>
+          <strong>你证明的是电路，不是你的程序。</strong>
+          如果电路和程序语义有偏差，SNARK 会忠实地为这个偏差作证 —— 而且不会有任何报错。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：三层翻译，越往下越「笨」</h2>
+    <p>
+      理解算术化最有效的方式，是看同一个计算如何被逐层降级。每降一层，表达力更弱、但可验证性更强。
+    </p>
+
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>源程序：有分支、有循环、有内存</h4>
+        <p><code>fn f(x) { let y = x*x*x + x + 5; assert_eq!(y, 35); }</code></p>
+        <p>人读得懂，机器也能跑，但无法「只验一小段」——要验证就得从头跑一遍。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>布尔电路：只剩与、或、非</h4>
+        <p>理论上任何程序都能编译成门电路。但一个 32 位乘法就是几千个 AND 门，一次 SHA-256 是几万个门。</p>
+        <p><strong>问题</strong>：布尔门在 SNARK 里极其昂贵，因为每个比特都要单独约束「它只能是 0 或 1」。</p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>算术电路：只剩加法和乘法</h4>
+        <p>把 32 位整数看成一个有限域元素，乘法就变成<strong>一次</strong>域乘法。一个 254 位乘法只需要 1 条约束。</p>
+        <p><strong>代价</strong>：失去了「位」的概念。想检查溢出、想比较大小，都得额外加约束把数拆回比特。</p>
+      </div>
+      <div class="st">
+        <div class="d">4</div>
+        <h4>约束系统：只剩一种形状的等式</h4>
+        <p>每条约束都长成「两个线性组合相乘 = 第三个线性组合」。这就是 R1CS。</p>
+        <p><strong>好处</strong>：形状统一，才能批量打包成多项式，才能压缩成常数大小的证明。</p>
+      </div>
+    </div>
+
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">一句话概括</span>
+        <p>
+          算术化是在<strong>用「表达力」换「可验证性」</strong>。你放弃了对数据类型的精细控制，
+          换来的是「一亿步计算可以压成三个群元素」这件事。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>核心概念与符号：先统一语言</h2>
+    <p>
+      后面所有公式都只用这几个符号。先把它们钉死，读公式时就不会卡。
+    </p>
+
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th style="width:110px">符号</th><th style="width:150px">名称</th><th>含义与作用</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>𝔽<sub>p</sub></code></td><td>有限域</td><td>所有运算都在 <code>mod p</code> 下进行。p 是一个大素数（常见 254 位）。加、减、乘、除都封闭。</td></tr>
+          <tr><td><code>w</code></td><td>见证向量</td><td>所有变量的取值排成一个列向量，包含公开输入、私密输入、以及全部中间结果。</td></tr>
+          <tr><td><code>w<sub>i</sub></code></td><td>第 i 个变量</td><td>向量的一个分量。约定 <code>w<sub>0</sub> = 1</code>，用来承载常数项。</td></tr>
+          <tr><td><code>n</code></td><td>变量个数</td><td><code>w ∈ 𝔽<sub>p</sub><sup>n</sup></code>。n 越大，证明者内存占用越高。</td></tr>
+          <tr><td><code>m</code></td><td>约束条数</td><td>电路里有多少个乘法门，通常就有多少条约束。m 是衡量电路规模的主要指标。</td></tr>
+          <tr><td><code>A, B, C</code></td><td>系数矩阵</td><td>三个 <code>m × n</code> 的矩阵，元素在 <code>𝔽<sub>p</sub></code> 中，由电路结构决定，<strong>公开且固定</strong>。</td></tr>
+          <tr><td><code>a<sub>i</sub></code></td><td>行向量</td><td>矩阵 A 的第 i 行，长度 n。表示第 i 条约束左边的第一个线性组合。</td></tr>
+          <tr><td><code>⟨a, w⟩</code></td><td>内积</td><td><code>Σ a<sub>j</sub>w<sub>j</sub></code>，也就是一个线性组合的取值。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>「赋值」和「约束」是两回事</h3>
+    <p>
+      这是初学者第一个、也是最致命的混淆点。在电路里：
+    </p>
+    <ul>
+      <li><strong>赋值</strong>（assignment）：告诉系统「这个变量的值是 7」。它只是一条计算指令。</li>
+      <li><strong>约束</strong>（constraint）：告诉系统「这个变量必须满足某个方程」。它才是被证明的东西。</li>
+    </ul>
+    <p>
+      在 Circom 里，<code>&lt;--</code> 只赋值，<code>===</code> 才是约束，而 <code>&lt;==</code> 两者都做。
+      如果你写了 <code>out &lt;-- in * in;</code> 却没写约束，证明者可以让 <code>out</code> 取<strong>任何值</strong>，
+      而证明依然能通过验证。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这就是 under-constrained（约束不足）</span>
+        <p>
+          它不是 bug，是「你确实没说要约束它」。密码学不会替你想这件事 ——
+          它只保证「你声明要证的约束都被满足了」。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>R1CS 的形式定义</h2>
+    <p class="lead">
+      R1CS 全称 Rank-1 Constraint System，一阶约束系统。名字里的「rank-1」指的是：
+      每条约束的二次项部分，可以写成两个向量的外积 —— 也就是「一个线性组合乘以另一个线性组合」。
+    </p>
+
+    <p>每条约束的形状固定为：</p>
+    <div class="fml">
+      ( <em>a</em><sub>i</sub> · <em>w</em> ) <span class="op">×</span> ( <em>b</em><sub>i</sub> · <em>w</em> ) <span class="op">=</span> ( <em>c</em><sub>i</sub> · <em>w</em> )
+      <span class="lbl">对每条约束 i = 1 … m 都成立</span>
+    </div>
+
+    <p>把内积展开，就是最完整的形式：</p>
+    <div class="fml">
+      ( Σ<sub>j=0</sub><sup>n−1</sup> <em>a</em><sub>ij</sub> <em>w</em><sub>j</sub> ) · ( Σ<sub>j=0</sub><sup>n−1</sup> <em>b</em><sub>ij</sub> <em>w</em><sub>j</sub> ) <span class="op">=</span> Σ<sub>j=0</sub><sup>n−1</sup> <em>c</em><sub>ij</sub> <em>w</em><sub>j</sub>
+      <span class="lbl">所有加法、乘法都在 𝔽<sub>p</sub> 中进行</span>
+    </div>
+
+    <h3>逐个符号说清楚</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">部分</th><th>含义</th><th style="width:210px">为什么是这个形状</th></tr></thead>
+        <tbody>
+          <tr><td><code>a<sub>ij</sub></code></td><td>第 i 条约束里，第 j 个变量在「左因子」中的系数</td><td>由电路连线决定，编译期固定</td></tr>
+          <tr><td><code>w<sub>j</sub></code></td><td>第 j 个变量的<strong>取值</strong>，由证明者填充</td><td>证明者的私密输入 + 计算出的中间值</td></tr>
+          <tr><td><code>a<sub>i</sub>·w</code></td><td>一个<strong>线性</strong>组合。注意它本身没有乘法</td><td>保证每条约束的乘法次数恰好是 1</td></tr>
+          <tr><td>中间的 <code>×</code></td><td>唯一的一次乘法</td><td>这是「rank-1」的来源</td></tr>
+          <tr><td>右边的 <code>c<sub>i</sub>·w</code></td><td>另一个线性组合，作为乘法的结果</td><td>让「加法的结果」也能被约束</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>为什么第一位必须是常数 1</h3>
+    <p>
+      因为等式右边只能放线性组合，没有地方写裸常数。把 <code>w<sub>0</sub> = 1</code> 固定住，
+      就可以用系数 <code>a<sub>i0</sub> = 5</code> 来表达「加上 5」这件事 ——
+      本质上是 <code>5 · w<sub>0</sub> = 5 · 1 = 5</code>。
+    </p>
+    <p>
+      这个技巧在所有算术化方案里都会出现：PLONK 叫它 <code>q<sub>c</sub></code>（常数选择子），
+      AIR 里叫常量列。名字不同，作用是同一个。
+    </p>
+
+    <h3>变量从哪来</h3>
+    <p>
+      见证向量不是随便排的，它有固定的三段结构：
+    </p>
+    <div class="fml" style="text-align:left;font-size:13px">
+      <em>w</em> = ( <span style="color:#8A6A22">1</span> , &nbsp;
+      <span style="color:#12384F">公开输入</span> , &nbsp;
+      <span style="color:#A6432B">私密输入</span> , &nbsp;
+      <span style="color:#55703F">中间变量</span> )
+      <span class="lbl">常数 · public inputs · private inputs · intermediate signals</span>
+    </div>
+    <p>
+      验证者只看得到前两段（常数 + 公开输入），后两段完全隐藏 —— 这正是零知识的来源：
+      证明只涉及对整个 <code>w</code> 的断言，而不暴露 <code>w</code> 的具体取值。
+    </p>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>完整推导：证明你知道 x³ + x + 5 = 35 的解</h2>
+    <p class="lead">
+      命题：<strong>我知道一个数 <code>x</code>，使得 <code>x³ + x + 5 = 35</code>。</strong>
+      答案是 3，但证明者不能说 —— 他只能证明「这个 x 存在，且我知道」。
+    </p>
+
+    <h3>第一步：展平（flattening）</h3>
+    <p>
+      R1CS 每条约束只允许<strong>一次</strong>乘法，而 <code>x³</code> 是两次乘法（<code>x·x·x</code>）。
+      所以必须引入中间变量，把高次运算拆成一条条「单次乘法」。
+    </p>
+    <p>拆解规则：每次乘法产生一个新变量。</p>
+    <div class="fml" style="text-align:left;font-size:13.5px;line-height:2.2">
+      <em>v</em><sub>1</sub> = <em>x</em> · <em>x</em> &nbsp;&nbsp;<span style="color:#7C8894">← 第 1 次乘法，得到 x²</span><br>
+      <em>v</em><sub>2</sub> = <em>v</em><sub>1</sub> · <em>x</em> &nbsp;&nbsp;<span style="color:#7C8894">← 第 2 次乘法，得到 x³</span><br>
+      <em>v</em><sub>3</sub> = <em>v</em><sub>2</sub> + <em>x</em> &nbsp;&nbsp;<span style="color:#7C8894">← 只有加法，不需要新变量，但结果要存下来</span><br>
+      <em>out</em> = <em>v</em><sub>3</sub> + 5 &nbsp;&nbsp;<span style="color:#7C8894">← 最终输出，必须是公开的</span>
+    </div>
+
+    <p>于是见证向量有 6 个分量：</p>
+    <div class="fml">
+      <em>w</em> = ( <em>w</em><sub>0</sub>, <em>w</em><sub>1</sub>, <em>w</em><sub>2</sub>, <em>w</em><sub>3</sub>, <em>w</em><sub>4</sub>, <em>w</em><sub>5</sub> ) = ( 1, &nbsp;<em>x</em>, &nbsp;<em>v</em><sub>1</sub>, &nbsp;<em>v</em><sub>2</sub>, &nbsp;<em>v</em><sub>3</sub>, &nbsp;<em>out</em> )
+      <span class="lbl">6 个变量，对应 n = 6</span>
+    </div>
+
+    <h3>第二步：每条语句写成一条约束</h3>
+    <p>
+      现在把四条语句逐个套进 <code>(a·w)(b·w) = (c·w)</code> 的形状。
+      诀窍是：<strong>先把等号左边写成「两个线性组合相乘」，再看右边需要什么</strong>。
+    </p>
+
+    <h4>约束 1：<code>x · x = v₁</code></h4>
+    <p>
+      <code>a·w</code> 要选出 <code>x</code>，所以 a 的第 1 位是 1、其余是 0：
+      <code>a = (0,1,0,0,0,0)</code>。同理 <code>b</code> 也选出 <code>x</code>。
+      <code>c·w</code> 要等于 <code>v₁</code>，所以 c 的第 2 位是 1。
+    </p>
+    <div class="fml" style="font-size:13px">
+      (0·1 + 1·<em>x</em> + 0 + 0 + 0 + 0) × (0·1 + 1·<em>x</em> + 0 + 0 + 0 + 0) = (0 + 0 + 1·<em>v</em><sub>1</sub> + 0 + 0 + 0)
+      <span class="lbl">化简即 x · x = v₁ ✓</span>
+    </div>
+
+    <h4>约束 2：<code>v₁ · x = v₂</code></h4>
+    <p>
+      a 选出 <code>v₁</code>（第 2 位），b 选出 <code>x</code>（第 1 位），c 选出 <code>v₂</code>（第 3 位）。
+    </p>
+    <div class="fml" style="font-size:13px">
+      a = (0,0,1,0,0,0) &nbsp;&nbsp; b = (0,1,0,0,0,0) &nbsp;&nbsp; c = (0,0,0,1,0,0)
+    </div>
+
+    <h4>约束 3：<code>v₂ + x = v₃</code></h4>
+    <p>
+      这条是加法，但 R1CS 需要一次乘法。技巧是<strong>乘以 1</strong>：
+      <code>(v₂ + x) · 1 = v₃</code>。常数 1 来自 <code>w₀</code>，所以 b 的第 0 位是 1。
+    </p>
+    <div class="fml" style="font-size:13px">
+      a = (0,1,0,1,0,0) &nbsp;&nbsp; b = (1,0,0,0,0,0) &nbsp;&nbsp; c = (0,0,0,0,1,0)
+      <span class="lbl">a 同时选出 x（第 1 位）和 v₂（第 3 位），加法在 a 内部就完成了</span>
+    </div>
+
+    <h4>约束 4：<code>v₃ + 5 = out</code></h4>
+    <p>
+      同样乘以 1。常数 5 通过 <code>a₀ = 5</code> 乘上 <code>w₀ = 1</code> 得到。
+    </p>
+    <div class="fml" style="font-size:13px">
+      a = (5,0,0,0,1,0) &nbsp;&nbsp; b = (1,0,0,0,0,0) &nbsp;&nbsp; c = (0,0,0,0,0,1)
+      <span class="lbl">a·w = 5·1 + v₃ = 5 + v₃ ✓</span>
+    </div>
+
+    <h3>第三步：拼成矩阵</h3>
+    <p>四条约束的系数竖着排，就得到三个 4×6 的矩阵：</p>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th style="width:60px">约束</th><th style="width:180px">语句</th><th>A 行向量</th><th>B 行向量</th><th>C 行向量</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td><code>x · x = v₁</code></td><td><code>(0,1,0,0,0,0)</code></td><td><code>(0,1,0,0,0,0)</code></td><td><code>(0,0,1,0,0,0)</code></td></tr>
+          <tr><td>2</td><td><code>v₁ · x = v₂</code></td><td><code>(0,0,1,0,0,0)</code></td><td><code>(0,1,0,0,0,0)</code></td><td><code>(0,0,0,1,0,0)</code></td></tr>
+          <tr><td>3</td><td><code>(v₂+x) · 1 = v₃</code></td><td><code>(0,1,0,1,0,0)</code></td><td><code>(1,0,0,0,0,0)</code></td><td><code>(0,0,0,0,1,0)</code></td></tr>
+          <tr><td>4</td><td><code>(v₃+5) · 1 = out</code></td><td><code>(5,0,0,0,1,0)</code></td><td><code>(1,0,0,0,0,0)</code></td><td><code>(0,0,0,0,0,1)</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">A、B、C 都是 4×6 矩阵。m = 4 条约束，n = 6 个变量。</p>
+
+    <h3>第四步：代入真值验证</h3>
+    <p>取 <code>x = 3</code>：</p>
+    <div class="fml" style="font-size:13px;text-align:left;line-height:2.1">
+      <em>w</em> = (1, 3, 9, 27, 30, 35)
+      <span class="lbl" style="text-align:left">因为 v₁ = 3² = 9，v₂ = 9·3 = 27，v₃ = 27+3 = 30，out = 30+5 = 35</span>
+    </div>
+    <p>逐条检查：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:60px">#</th><th>左边 (a·w)(b·w)</th><th>右边 c·w</th><th style="width:70px">结果</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>3 × 3 = 9</code></td><td><code>v₁ = 9</code></td><td style="color:#55703F;font-weight:600">✓</td></tr>
+          <tr><td>2</td><td><code>9 × 3 = 27</code></td><td><code>v₂ = 27</code></td><td style="color:#55703F;font-weight:600">✓</td></tr>
+          <tr><td>3</td><td><code>(27+3) × 1 = 30</code></td><td><code>v₃ = 30</code></td><td style="color:#55703F;font-weight:600">✓</td></tr>
+          <tr><td>4</td><td><code>(30+5) × 1 = 35</code></td><td><code>out = 35</code></td><td style="color:#55703F;font-weight:600">✓</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>用 Circom 写一遍同样的电路</h3>
+    <p>
+      上面的四条约束，在真实语言里是这样表达的。注意 <code>&lt;==</code> 同时做「赋值 + 约束」，
+      所以每一行都对应一条 R1CS：
+    </p>
+    <pre data-lang="circom"><code><span class="k">pragma</span> circom 2.0.0;
+
+<span class="k">template</span> Cubic() {
+    <span class="k">signal input</span> x;
+    <span class="k">signal output</span> out;
+
+    <span class="k">signal</span> v1;
+    <span class="k">signal</span> v2;
+    <span class="k">signal</span> v3;
+
+    v1  &lt;== x * x;      <span class="c">// 约束 1</span>
+    v2  &lt;== v1 * x;     <span class="c">// 约束 2</span>
+    v3  &lt;== v2 + x;     <span class="c">// 约束 3</span>
+    out &lt;== v3 + 5;     <span class="c">// 约束 4</span>
+
+    out === 35;         <span class="c">// 把输出钉死为公开值</span>
+}
+
+<span class="k">component</span> main = Cubic();</code></pre>
+    <p>
+      编译器会把这段代码展开成 4 条 R1CS 约束，并把 <code>x</code> 标为私密输入、
+      <code>out</code> 标为公开输入。<strong>你写的每一行 <code>&lt;==</code>，就是一条约束。</strong>
+    </p>
+
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">到这里，算术化就完成了</span>
+        <p>
+          你得到的是：<strong>3 个公开矩阵 + 1 个私密向量</strong>。
+          接下来要做的，是让别人相信「存在一个 <code>w</code> 让这 4 条等式同时成立」，而不看见 <code>w</code>。
+          那就是 QAP 和多项式承诺要干的事。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>为什么不能直接写 x³</h2>
+    <p>
+      这不是实现限制，是数学性质决定的。R1CS 的每条约束是一个<strong>秩为 1</strong> 的二次型：
+      它只能表达 <code>(线性)·(线性)</code>。展开后，所有二次项都来自两个向量的外积，
+      因此二次项矩阵的秩必然 ≤ 1。
+    </p>
+    <p>
+      而 <code>x³</code> 是一个三次项。要表达它，要么允许三次型（那就不再是 R1CS），
+      要么引入中间变量把次数降下来 —— 后者就是展平。
+    </p>
+
+    <h4>形式化地看：秩的约束</h4>
+    <p>
+      把一条约束写成二次型 <code>w<sup>T</sup> M w</code>，其中 <code>M = a b<sup>T</sup></code>。
+      由于 <code>a b<sup>T</sup></code> 是一个列向量乘一个行向量，它的秩恒为 1（只要 a、b 非零）。
+    </p>
+    <div class="fml">
+      rank( <em>a b</em><sup>T</sup> ) <span class="op">=</span> 1
+      <span class="lbl">这就是「Rank-1」的字面来源：每条约束的二次型矩阵秩为 1</span>
+    </div>
+    <p>
+      所以想表达 <code>x³</code>，必须拆成 <code>x·x = v₁</code> 和 <code>v₁·x = v₂</code> 两条约束 ——
+      每条秩都是 1，合起来才等于三次。
+    </p>
+
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">代价有多大</span>
+        <p>
+          一个 <code>d</code> 次多项式，需要 <code>d−1</code> 个中间变量和 <code>d−1</code> 条约束。
+          这就是为什么「在电路里算 SHA-256」这么贵：它的布尔运算本质上是高次多项式，
+          展开后动辄几万条约束。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>矩阵视角：三种等价写法</h2>
+    <p>同一件事有三种写法，读论文时会交替出现，认得出它们是同一个东西就行。</p>
+
+    <h3>写法一：逐条约束（最直观）</h3>
+    <div class="fml">
+      ( <em>a</em><sub>i</sub> · <em>w</em> ) ( <em>b</em><sub>i</sub> · <em>w</em> ) = ( <em>c</em><sub>i</sub> · <em>w</em> ) &nbsp;&nbsp; <em>i</em> = 1…<em>m</em>
+    </div>
+
+    <h3>写法二：矩阵 × 向量（最常用）</h3>
+    <div class="fml">
+      ( <em>A w</em> ) <span class="op">⊙</span> ( <em>B w</em> ) = ( <em>C w</em> )
+      <span class="lbl">⊙ 是 Hadamard 积（逐元素相乘），A、B、C 都是 m×n 矩阵，Aw 是长度 m 的列向量</span>
+    </div>
+    <p>
+      注意这里是<strong>逐元素</strong>相乘，不是矩阵乘法。含义是「第 i 条约束的左边第一个因子」
+      乘以「第 i 条约束的左边第二个因子」，等于「第 i 条约束的右边」。逐条对应，不能混。
+    </p>
+
+    <h3>写法三：多项式形式（为下一模块铺路）</h3>
+    <p>
+      把矩阵的每一<strong>列</strong>看成一个多项式在点 <code>1, 2, …, m</code> 上的取值，
+      插值出 <code>A<sub>j</sub>(x)</code>、<code>B<sub>j</sub>(x)</code>、<code>C<sub>j</sub>(x)</code>，于是：
+    </p>
+    <div class="fml">
+      ( Σ<sub>j</sub> <em>w</em><sub>j</sub> <em>A</em><sub>j</sub>(x) ) · ( Σ<sub>j</sub> <em>w</em><sub>j</sub> <em>B</em><sub>j</sub>(x) ) − ( Σ<sub>j</sub> <em>w</em><sub>j</sub> <em>C</em><sub>j</sub>(x) ) = <em>h</em>(x) · <em>Z</em>(x)
+      <span class="lbl">这就是 QAP 恒等式，下一模块展开</span>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>从 R1CS 到 QAP：只差一步插值</h2>
+    <p>
+      为什么要把矩阵变成多项式？因为<strong>逐条检查 m 条约束</strong>是 O(m) 的工作量，
+      而多项式有一个性质：两个不同的多项式，在随机点上取值相同的概率极低。
+    </p>
+    <p>
+      于是「m 条约束全部成立」可以压缩成「一个多项式恒等式成立」，再压缩成「在随机点 z 上成立」。
+      这就是 SNARK 从 O(m) 变成 O(1) 的关键一跃。
+    </p>
+
+    <h3>目标多项式</h3>
+    <p>定义</p>
+    <div class="fml">
+      <em>Z</em>(x) = (x − 1)(x − 2) ⋯ (x − <em>m</em>)
+      <span class="lbl">它在 x = 1…m 处全为零，正好对应 m 条约束的位置</span>
+    </div>
+    <p>
+      因为每条约束在对应点上都必须成立，所以差值多项式 <code>P(x) = (Σw<sub>j</sub>A<sub>j</sub>)(Σw<sub>j</sub>B<sub>j</sub>) − Σw<sub>j</sub>C<sub>j</sub></code>
+      在 <code>x = 1…m</code> 处全为零 —— 也就是说，它一定能被 <code>Z(x)</code> 整除。
+    </p>
+    <div class="fml">
+      <em>P</em>(x) = <em>h</em>(x) · <em>Z</em>(x)
+      <span class="lbl">h(x) 叫商多项式，次数约为 m，由证明者计算并承诺</span>
+    </div>
+
+    <h3>为什么这一步是「免费」的</h3>
+    <p>
+      插值不增加任何约束，只是换了一种表示。但它把「m 个独立的等式」变成了「1 个恒等式」，
+      从而让后面的多项式承诺可以一次性处理全部约束。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">代价在哪</span>
+        <p>
+          插值需要做 FFT/NTT，复杂度 <code>O(m log m)</code>。这是证明者开销的主要来源之一。
+          而且要求 <code>m</code> 接近 2 的幂，否则要补零 —— 这也是为什么电路规模总是
+          「刚好超过 2<sup>20</sup>」这种数字。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s9">
+    <h2><span class="n">09</span>三种算术化格式：R1CS / PLONKish / AIR</h2>
+    <p>
+      R1CS 不是唯一选择。三种主流格式的差别，本质上是「一条约束能塞进多少东西」。
+    </p>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th style="width:110px">维度</th><th>R1CS</th><th>PLONKish</th><th>AIR</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>约束形状</strong></td><td>固定：<code>(a·w)(b·w)=(c·w)</code></td><td>自定义门，形式为选择子 × 列的多项式</td><td>相邻两行之间的状态转移</td></tr>
+          <tr><td><strong>一条约束能做多少</strong></td><td>一次乘法</td><td>可含多次乘加、查表、位运算</td><td>一次状态转移（可含复杂逻辑）</td></tr>
+          <tr><td><strong>表达力</strong></td><td>弱。复杂运算约束数膨胀</td><td>强。zkEVM 的主流选择</td><td>强。天然适合虚拟机、循环计算</td></tr>
+          <tr><td><strong>典型配套</strong></td><td>Groth16</td><td>PLONK / Halo2 / UltraPLONK</td><td>STARK</td></tr>
+          <tr><td><strong>证明者开销</strong></td><td>低（约束数最省）</td><td>中（列多，但约束少）</td><td>高（但可高度并行）</td></tr>
+          <tr><td><strong>主要痛点</strong></td><td>无法表达查表，位运算贵</td><td>需要处理 copy constraints（置换论证）</td><td>证明体积大</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>PLONKish 长什么样（一句话版）</h3>
+    <p>
+      PLONK 把电路看成一个<strong>表格</strong>：每一行是一个门，每一列是一类信号（左输入、右输入、输出、选择子）。
+      约束写成：
+    </p>
+    <div class="fml" style="font-size:13px">
+      <em>q</em><sub>L</sub>·<em>a</em> + <em>q</em><sub>R</sub>·<em>b</em> + <em>q</em><sub>M</sub>·<em>a</em>·<em>b</em> + <em>q</em><sub>O</sub>·<em>c</em> + <em>q</em><sub>C</sub> = 0
+      <span class="lbl">q 是「选择子」，用来决定这一行启用哪些项；a/b/c 是三列信号值</span>
+    </div>
+    <p>
+      当 <code>q<sub>M</sub>=1</code>、其余选择子按需取值时，这一个式子就能表达加法门、乘法门、甚至常数门。
+      比 R1CS 灵活得多，代价是每一行都要携带 5 个选择子。
+    </p>
+
+    <details>
+      <summary>进阶：为什么 PLONK 必须额外做「置换论证」</summary>
+      <div class="bd">
+        <p>
+          在 R1CS 里，同一个变量在多个约束中出现，靠的是矩阵里<strong>同一列</strong>的系数。
+          矩阵天然保证「这是同一个 w<sub>j</sub>」。
+        </p>
+        <p>
+          但 PLONK 的表格是<strong>位置化</strong>的：第 3 行第 1 列和第 7 行第 2 列可能是同一个变量。
+          表格本身不知道这件事，所以需要额外证明「这些位置上的值相等」——
+          这就是置换论证（permutation argument），也叫 copy constraints。
+        </p>
+        <p>
+          代价：每个电路都要构造一个置换 σ，并额外生成 3 个多项式承诺。这就是 PLONK 证明比 Groth16 大的原因之一。
+        </p>
+      </div>
+    </details>
+  </section>
+
+  <section id="s10">
+    <h2><span class="n">10</span>小结</h2>
+    <div class="recap">
+      <h4>这一页你应该带走的东西</h4>
+      <ul>
+        <li>算术化是<strong>程序 → 算术电路 → 约束系统</strong>的翻译，目的是让 SNARK 能处理它。</li>
+        <li>R1CS 每条约束只有<strong>一次乘法</strong>：<code>(a·w)(b·w) = (c·w)</code>。</li>
+        <li>见证向量第一位固定为 1，用来承载常数项。</li>
+        <li>高次运算必须<strong>展平</strong>：<code>x³</code> 要拆成 <code>x·x=v₁</code> 和 <code>v₁·x=v₂</code>。</li>
+        <li>「赋值」不等于「约束」。只赋值不约束 = 证明者可以为所欲为。</li>
+        <li>R1CS 插值后变成 QAP 恒等式，这是从 O(m) 降到 O(1) 的关键一步。</li>
+        <li>R1CS / PLONKish / AIR 的差别是「一条约束能塞进多少东西」，不是「谁更先进」。</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="s11">
+    <h2><span class="n">11</span>常见误区</h2>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「电路编译通过了，说明算术化是对的。」</span></div>
+      <div class="r"><i>✓</i><div>编译只检查语法和类型。约束缺失（under-constrained）会安静地通过编译、
+        生成合法证明、通过链上验证，直到有人构造出恶意输入才发现。<strong>必须做形式化验证或对抗性测试。</strong></div></div>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「约束越多越安全。」</span></div>
+      <div class="r"><i>✓</i><div>约束多只意味着证明慢、内存高。安全性取决于<strong>该有的约束是否都有</strong>，
+        而不是数量。一条多余的约束不会增加安全，只会增加成本。</div></div>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「除法就是写 <code>a / b</code>。」</span></div>
+      <div class="r"><i>✓</i><div>有限域里没有除法，只有<strong>乘以逆元</strong>。而且必须额外约束 <code>b ≠ 0</code>，
+        否则 <code>b = 0</code> 时逆元不存在，电路行为未定义。正确写法是
+        <code>a = c · b</code> 且 <code>c · b<sup>-1</sup> = 1</code> 这样的双向约束。</div></div>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「32 位整数就是域元素，直接算就行。」</span></div>
+      <div class="r"><i>✓</i><div>域元素是 254 位，没有「溢出回绕」这回事。<code>2³² + 1</code> 在域里就是
+        <code>2³² + 1</code>，不会变成 1。<strong>想模拟 u32，必须额外加范围检查约束</strong>，
+        通常用查找表（lookup）实现，成本不低。</div></div>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「中间变量是免费的，多引入几个无所谓。」</span></div>
+      <div class="r"><i>✓</i><div>每个中间变量都增加 <code>n</code>，每条约束都增加 <code>m</code>。
+        证明者的内存与 <code>n</code> 线性相关，FFT 开销与 <code>m log m</code> 相关。
+        在大电路里，省下 10% 的约束往往就是省下几秒和几个 GB。</div></div>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「QAP 是另一种电路，要和 R1CS 二选一。」</span></div>
+      <div class="r"><i>✓</i><div>QAP 不是替代品，是 R1CS 的<strong>等价表示</strong>。同一组约束，
+        既可以写成矩阵，也可以插值成多项式。前者便于描述，后者便于压缩。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="02-02-polynomial-commitments.html">
+      <span class="pl">下一模块 · 02 · 02</span>
+      <span class="pt">多项式承诺：把多项式锁进一个点 →</span>
+    </a>
+    <a href="index.html">
+      <span class="pl">返回</span>
+      <span class="pt">全部 24 个模块</span>
+    </a>
+  </div>
+
+</main>
+</div>
+
+<script src="assets/nav.js"></script>
+</body>
+</html>

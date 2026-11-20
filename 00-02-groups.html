@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>群 · 数学家为什么非要发明这个词 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">群</div>
+  <div class="side-s">00 · Groups</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这一页要解决什么</a>
+    <a href="#s2"><span>2</span>群的直觉：只看「怎么组合」</a>
+    <a href="#s3"><span>3</span>四条规矩</a>
+    <a href="#s4"><span>4</span>四个毫不相干的例子</a>
+    <a href="#s5"><span>5</span>循环群与生成元</a>
+    <a href="#s6"><span>6</span>阶是什么</a>
+    <a href="#s7"><span>7</span>手算：找出 𝔽₁₁* 的生成元</a>
+    <a href="#s8"><span>8</span>ZKP 里为什么全是群</a>
+    <a href="#s9"><span>9</span>同态：两个群之间的翻译</a>
+    <a href="#s10"><span>10</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="00-01-number-systems.html">← 上一模块 · 数系地图</a>
+    <a href="00-03-rings-fields.html">下一模块 · 环与域 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>这一页要解决什么</a></li>
+      <li><a href="#s2"><span>2</span>群的直觉</a></li>
+      <li><a href="#s3"><span>3</span>四条规矩</a></li>
+      <li><a href="#s4"><span>4</span>四个例子</a></li>
+      <li><a href="#s5"><span>5</span>循环群与生成元</a></li>
+      <li><a href="#s6"><span>6</span>阶是什么</a></li>
+      <li><a href="#s7"><span>7</span>手算生成元</a></li>
+      <li><a href="#s8"><span>8</span>ZKP 里的群</a></li>
+      <li><a href="#s9"><span>9</span>同态</a></li>
+      <li><a href="#s10"><span>10</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>00 零基础前置</span><span>/</span><b>00 · 02</b></div>
+
+  <header>
+    <h1>群：不是一个东西，是一套规矩</h1>
+    <p class="tagline">
+      「群」这个词最容易误解的地方在于：它听起来像一个<strong>集合</strong>，其实它是一个<strong>承诺</strong> ——
+      承诺「我这套东西的运算，满足以下四条」。满足就是群，不满足就不是。
+      这一页把四条规矩拆开，用你能手算的例子逐个验证。
+    </p>
+    <div class="meta">
+      <span class="hot">零基础必读</span>
+      <span>≈ 19 min</span>
+      <span>难度 2 / 5</span>
+      <span>前置：00 · 01</span>
+      <span>被用于：椭圆曲线 · 配对 · 承诺</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这一页要解决什么</h2>
+    <p class="lead">
+      论文里一上来就说「设 𝔾 是一个阶为 q 的循环群，g 是生成元」。
+      这句话里有四个词你都得有画面：<strong>群、阶、循环、生成元</strong>。这一页全给。
+    </p>
+    <p>
+      先说清楚一件事：<strong>「群」不是某种特定的数</strong>。
+      下面这些东西<strong>全都是群</strong>：
+    </p>
+    <ul>
+      <li>所有整数，配上加法</li>
+      <li>模 7 的非零余数 <code>{1,2,3,4,5,6}</code>，配上乘法</li>
+      <li>一张正方形纸的四种旋转（0°、90°、180°、270°），配上「转完再转」</li>
+      <li>椭圆曲线上的所有点，配上「两点连线求第三点再翻折」</li>
+    </ul>
+    <p>
+      这四件事看起来毫无关系 —— 一个是数，一个是余数，一个是动作，一个是几何点。
+      但它们<strong>共享一整套定理</strong>：都能求逆、都能算幂、都有阶、拉格朗日定理对它们全都成立。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">数学家干的事，本质是「提取公因式」</span>
+        <p>
+          发现这四件事的运算规则一模一样，就把共同点抽出来命名叫「群」，
+          然后<strong>只证明一次定理，四件事同时受益</strong>。
+          所以你学的不是四个知识点，是一个知识点的四种穿法。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：群只关心「怎么组合」</h2>
+    <p>
+      想象一台只能做一件事的机器：塞进两个东西，吐出一个东西。这叫<strong>二元运算</strong>。
+    </p>
+    <div class="fml">
+      <em>a</em> <span class="op">∗</span> <em>b</em> = <em>c</em>
+      <span class="lbl">∗ 只是一个占位符，可以是 +、×、∘（复合）、⊕（点加）……具体是什么由你定义</span>
+    </div>
+    <p>关键在于：<strong>群从不过问 a、b、c 到底是什么</strong>。它只问四件事：</p>
+    <ol>
+      <li>两个东西组合完，结果还在这个集合里吗？</li>
+      <li>三个东西连着组合，先算哪两个有区别吗？</li>
+      <li>有没有一个「什么都不做」的东西？</li>
+      <li>每个东西有没有「能抵消它」的东西？</li>
+    </ol>
+    <p>这就是四条公理。下面逐个说。</p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>四条规矩：缺一条就不是群</h2>
+
+    <h3>规矩一 · 封闭性（closure）</h3>
+    <div class="fml">
+      若 <em>a</em>, <em>b</em> ∈ 𝔾 ，则 <em>a</em> ∗ <em>b</em> ∈ 𝔾
+      <span class="lbl">运算结果不许跑到集合外面去</span>
+    </div>
+    <p>
+      反例：自然数 <code>ℕ = {0,1,2,…}</code> 配减法。<code>3 − 5 = −2</code>，−2 不在 ℕ 里。
+      <strong>封闭性破了，后面三条免谈。</strong>
+    </p>
+    <p>
+      这也解释了 01 · 01 为什么强调「所有结果都落在 <code>[0, p)</code>」——
+      那道「取余」动作的唯一目的，就是把结果强行拽回集合内。没有它，模运算根本不封闭。
+    </p>
+
+    <h3>规矩二 · 结合律（associativity）</h3>
+    <div class="fml">
+      ( <em>a</em> ∗ <em>b</em> ) ∗ <em>c</em> = <em>a</em> ∗ ( <em>b</em> ∗ <em>c</em> )
+      <span class="lbl">连续组合时，括号打在哪里不影响结果</span>
+    </div>
+    <p>
+      加法满足：<code>(1+2)+3 = 1+(2+3) = 6</code>。乘法也满足。
+      但<strong>减法不满足</strong>：<code>(5−3)−1 = 1</code>，而 <code>5−(3−1) = 3</code>。差得远。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么这条这么重要</span>
+        <p>
+          因为它让你可以放心地写 <code>g·g·g·…·g</code>（n 个）而不必加括号，
+          于是「幂」这个概念才定义得干净：<code>g<sup>n</sup></code>。
+          没有结合律，<code>g<sup>n</sup></code> 是含糊的 —— 你都不知道从哪头开始算。
+          而 ZKP 里全是 <code>g<sup>n</sup></code>。
+        </p>
+      </div>
+    </div>
+    <p>
+      <strong>注意：不要求交换律。</strong> <code>a∗b</code> 和 <code>b∗a</code> 可以不等。
+      矩阵乘法就不交换，椭圆曲线点加<strong>是</strong>交换的（所以叫「阿贝尔群」）。
+      论文里写「阿贝尔群 / abelian group」时，就是在额外声明「这个群还满足交换律」。
+    </p>
+
+    <h3>规矩三 · 单位元（identity）</h3>
+    <div class="fml">
+      存在 <em>e</em> ，使 <em>e</em> ∗ <em>a</em> = <em>a</em> ∗ <em>e</em> = <em>a</em>
+      <span class="lbl">「什么都不做」的那个元素</span>
+    </div>
+    <p>
+      加法里的 <code>e = 0</code>（加 0 不变），乘法里的 <code>e = 1</code>（乘 1 不变），
+      旋转里的 <code>e = 转 0°</code>，椭圆曲线里的 <code>e = 无穷远点 𝒪</code>。
+    </p>
+    <p>
+      <strong>每个群的单位元都不同，但作用都一样：什么都不做。</strong>
+      论文里写 <code>1<sub>𝔾</sub></code> 或 <code>𝒪</code> 时，说的就是这个东西。
+    </p>
+
+    <h3>规矩四 · 逆元（inverse）</h3>
+    <div class="fml">
+      对每个 <em>a</em> ，存在 <em>a</em><sup>−1</sup> 使 <em>a</em> ∗ <em>a</em><sup>−1</sup> = <em>e</em>
+      <span class="lbl">每个元素都有「解药」，能把操作撤销</span>
+    </div>
+    <p>
+      加法里 <code>a</code> 的逆元是 <code>−a</code>；乘法里 <code>a</code> 的逆元是 <code>1/a</code>；
+      转 90° 的逆元是转 270°（合起来转 360° = 没转）。
+    </p>
+    <p>
+      这一条是<strong>最容易失败</strong>的一条。01 · 01 讲过：模 12 的集合里，6 就没有逆元。
+      所以 <code>{0,…,11}</code> 配乘法<strong>不是群</strong>；而 <code>{1,…,6}</code>（去掉 0）配模 7 乘法<strong>是群</strong>。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">「群」和「域」最容易混的一点</span>
+        <p>
+          群只有<strong>一个</strong>运算。域有<strong>两个</strong>。
+          所以 <code>𝔽<sub>p</sub></code> 本身配加法是群，<code>𝔽<sub>p</sub>*</code>（去掉 0）配乘法也是群 ——
+          <strong>同一个集合，换运算就是另一个群</strong>。下一模块讲域时会说清它俩怎么叠在一起。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>四个毫不相干的例子，逐条验一遍</h2>
+    <p>
+      这张表是本页的核心。横着读是「同一个群概念」，竖着读是「四个不同的世界」。
+    </p>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:120px">规矩</th>
+            <th>整数 + 加法</th>
+            <th>𝔽<sub>7</sub>* 乘法</th>
+            <th>正方形旋转</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>集合</strong></td>
+            <td>…, −2, −1, 0, 1, 2, …</td>
+            <td>{1, 2, 3, 4, 5, 6}</td>
+            <td>{0°, 90°, 180°, 270°}</td>
+          </tr>
+          <tr>
+            <td><strong>运算</strong></td>
+            <td>+</td>
+            <td>× mod 7</td>
+            <td>转完再转</td>
+          </tr>
+          <tr>
+            <td><strong>封闭</strong></td>
+            <td>✓ 整数加整数还是整数</td>
+            <td>✓ 乘积取余必在 1…6</td>
+            <td>✓ 90+270=360≡0</td>
+          </tr>
+          <tr>
+            <td><strong>结合</strong></td>
+            <td>✓</td>
+            <td>✓</td>
+            <td>✓ 转动的复合天然结合</td>
+          </tr>
+          <tr>
+            <td><strong>单位元</strong></td>
+            <td>0</td>
+            <td>1</td>
+            <td>0°（不转）</td>
+          </tr>
+          <tr>
+            <td><strong>逆元</strong></td>
+            <td>−a</td>
+            <td>3 的逆是 5（3×5=15≡1）</td>
+            <td>90° 的逆是 270°</td>
+          </tr>
+          <tr>
+            <td><strong>是群吗</strong></td>
+            <td><strong>是</strong></td>
+            <td><strong>是</strong></td>
+            <td><strong>是</strong></td>
+          </tr>
+          <tr>
+            <td><strong>有限吗</strong></td>
+            <td>✗ 无限群</td>
+            <td>✓ 6 个元素</td>
+            <td>✓ 4 个元素</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">
+      注意最后一行：ZKP 只用<strong>有限群</strong>。无限群没法在计算机里表示，也没法采样。
+    </p>
+
+    <h3>再给一个「不是群」的对照</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:200px">候选</th><th style="width:130px">哪条挂了</th><th>为什么</th></tr></thead>
+        <tbody>
+          <tr><td>ℕ + 减法</td><td>封闭</td><td>3 − 5 = −2 ∉ ℕ</td></tr>
+          <tr><td>{0,…,11} × mod 12</td><td>逆元</td><td>6 乘什么都得不到 1</td></tr>
+          <tr><td>ℤ + 减法</td><td>结合</td><td>(5−3)−1 ≠ 5−(3−1)</td></tr>
+          <tr><td>正整数 + 加法</td><td>单位元</td><td>0 不在集合里</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>循环群：一个元素就能转出全部</h2>
+    <p class="lead">
+      这是 ZKP 里最重要的一类群。定义很短：<strong>存在一个元素，它的所有幂次恰好铺满整个群。</strong>
+    </p>
+    <p>拿 <code>𝔽<sub>7</sub>* = {1,2,3,4,5,6}</code> 配乘法，试 <code>g = 3</code>：</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.15">
+      3<sup>1</sup> = 3 &nbsp;&nbsp;→ 3<br>
+      3<sup>2</sup> = 9 ≡ 2<br>
+      3<sup>3</sup> = 2×3 = 6<br>
+      3<sup>4</sup> = 6×3 = 18 ≡ 4<br>
+      3<sup>5</sup> = 4×3 = 12 ≡ 5<br>
+      3<sup>6</sup> = 5×3 = 15 ≡ 1 &nbsp;&nbsp;<span style="color:#55703F">← 回到 1，闭环</span>
+    </div>
+    <p>
+      走出来的顺序是 <code>3, 2, 6, 4, 5, 1</code> —— <strong>六个元素一个不落</strong>，然后回到起点。
+      所以 3 是 <code>𝔽<sub>7</sub>*</code> 的一个<strong>生成元</strong>（generator），也叫<strong>本原元</strong>。
+    </p>
+
+    <div style="margin:26px 0 30px;padding:24px 20px;background:#fff;border:1px solid var(--rule);overflow-x:auto">
+      <svg viewBox="0 0 660 285" style="width:100%;min-width:540px;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="14" font-family="monospace" font-size="10" fill="#7C8894" letter-spacing="1.2">3 的幂次在 𝔽₇* 里绕圈</text>
+        <g transform="translate(180,148)">
+          <circle cx="0" cy="0" r="86" fill="none" stroke="#E2DCD0"/>
+          <!-- 6 个点，每 60 度一个 -->
+          <g font-family="monospace" font-size="13">
+            <!-- 位置：-90 度起，顺时针 g^1..g^6 -->
+            <circle cx="0" cy="-86" r="19" fill="#F8ECE7" stroke="#A6432B"/><text x="0" y="-81" text-anchor="middle" fill="#A6432B" font-weight="700">3</text>
+            <circle cx="74.5" cy="-43" r="19" fill="#fff" stroke="#E2DCD0"/><text x="74.5" y="-38" text-anchor="middle" fill="#16202A">2</text>
+            <circle cx="74.5" cy="43" r="19" fill="#fff" stroke="#E2DCD0"/><text x="74.5" y="48" text-anchor="middle" fill="#16202A">6</text>
+            <circle cx="0" cy="86" r="19" fill="#fff" stroke="#E2DCD0"/><text x="0" y="91" text-anchor="middle" fill="#16202A">4</text>
+            <circle cx="-74.5" cy="43" r="19" fill="#fff" stroke="#E2DCD0"/><text x="-74.5" y="48" text-anchor="middle" fill="#16202A">5</text>
+            <circle cx="-74.5" cy="-43" r="19" fill="#EDF2E5" stroke="#55703F"/><text x="-74.5" y="-38" text-anchor="middle" fill="#55703F" font-weight="700">1</text>
+          </g>
+          <g font-family="sans-serif" font-size="9.5" fill="#7C8894">
+            <text x="0" y="-114" text-anchor="middle">g¹</text>
+            <text x="99" y="-55" text-anchor="start">g²</text>
+            <text x="99" y="62" text-anchor="start">g³</text>
+            <text x="0" y="122" text-anchor="middle">g⁴</text>
+            <text x="-99" y="62" text-anchor="end">g⁵</text>
+            <text x="-99" y="-55" text-anchor="end">g⁶</text>
+          </g>
+        </g>
+        <g font-family="sans-serif" font-size="11.5" fill="#4A5764">
+          <text x="330" y="66">每乘一次 3，就沿圆走一格。</text>
+          <text x="330" y="88">走完 6 格回到 1 —— 因为</text>
+          <text x="330" y="110" font-family="monospace" font-size="12" fill="#A6432B">3⁶ ≡ 1 (mod 7)</text>
+          <text x="330" y="140">阶 = 6 = |𝔽₇*|，所以 3 是</text>
+          <text x="330" y="162"><tspan font-weight="700" fill="#12384F">生成元</tspan>，这个群是<tspan font-weight="700" fill="#12384F">循环群</tspan>。</text>
+          <text x="330" y="200" font-size="10.5" fill="#7C8894">换成 g = 2 试试：2,4,1,2,4,1…</text>
+          <text x="330" y="216" font-size="10.5" fill="#7C8894">只走 3 格就闭环 —— 不是生成元。</text>
+        </g>
+      </svg>
+    </div>
+
+    <p>
+      换成 <code>g = 2</code> 会怎样？<code>2, 4, 1, 2, 4, 1, …</code> 只覆盖三个元素就回去了。
+      它生成的只是<strong>子群</strong> <code>{1,2,4}</code>，不是整个群。
+    </p>
+    <p>
+      一个群可以有多个生成元。<code>𝔽<sub>7</sub>*</code> 里 3 和 5 都是生成元（<code>5</code> 的顺序是 <code>5,4,6,2,3,1</code>）。
+      生成元的个数由欧拉函数 <code>φ(p−1)</code> 决定 —— 但实际工程里没人去算，随机试几次就有了。
+    </p>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>阶：转几圈回到起点</h2>
+    <p>「阶」（order）这个词在论文里出现频率极高，而且<strong>有两个不同的用法</strong>，必须分清：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:190px">写法</th><th style="width:130px">读作</th><th>意思</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>|𝔾|</code> 或 <code>ord(𝔾)</code></td>
+            <td>群的阶</td>
+            <td>群里<strong>有几个元素</strong>。也叫群的<strong>大小</strong>。</td>
+          </tr>
+          <tr>
+            <td><code>ord(g)</code></td>
+            <td>元素的阶</td>
+            <td>使 <code>g<sup>k</sup> = e</code> 成立的<strong>最小正整数 k</strong>。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      在循环群里，如果 <code>g</code> 是生成元，两者相等：<code>ord(g) = |𝔾|</code>。
+      如果 <code>g</code> 不是生成元，<code>ord(g)</code> 整除 <code>|𝔾|</code>。
+    </p>
+    <div class="fml">
+      <em>g</em><sup>|<em>𝔾</em>|</sup> = <em>e</em> &nbsp;&nbsp;对任意 <em>g</em> ∈ 𝔾 成立
+      <span class="lbl">拉格朗日定理的直接推论 —— 任何元素「转满一圈」都必然回到单位元</span>
+    </div>
+    <p>
+      这条看起来平淡，但它是<strong>所有「指数运算可以降次」优化的依据</strong>：
+      要算 <code>g<sup>1000</sup></code> 而 <code>|𝔾| = 7</code>，直接算 <code>1000 mod 7 = 6</code>，算 <code>g<sup>6</sup></code> 就行。
+      实现里所有标量都会先对群阶取模，就是这个原因。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么 ZKP 的群阶总是素数</span>
+        <p>
+          因为素数阶群里<strong>没有非平凡子群</strong>（除了 {e} 和它自己）。
+          这排除了「元素意外落进小子群」这类攻击，也让「随机取一个点必然是生成元」成立。
+          所以 BN254、BLS12-381 的标量域都是精心挑的素数。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>手算：在 𝔽<sub>11</sub>* 里找生成元</h2>
+    <p class="lead">
+      <code>𝔽<sub>11</sub>* = {1,…,10}</code>，群阶 10。测 <code>g = 2</code>。
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>连续乘 2，记录结果</h4>
+        <p>
+          <code>2¹=2</code>，<code>2²=4</code>，<code>2³=8</code>，<code>2⁴=16≡5</code>，<code>2⁵=10≡−1</code>，
+          <code>2⁶=20≡9</code>，<code>2⁷=18≡7</code>，<code>2⁸=14≡3</code>，<code>2⁹=6</code>，<code>2¹⁰=12≡1</code>。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>看是否铺满</h4>
+        <p>
+          走出的序列是 <code>2,4,8,5,10,9,7,3,6,1</code> —— 1 到 10 <strong>正好各出现一次</strong>。
+          所以 <strong>2 是 𝔽<sub>11</sub>* 的生成元</strong>，这个群是循环群。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>验一个「不是生成元」的</h4>
+        <p>
+          <code>g = 3</code>：<code>3,9,5,4,1</code> → 第 5 步就回到 1。<code>ord(3) = 5</code>，
+          只生成子群 <code>{1,3,4,5,9}</code>。<strong>5 整除 10</strong> —— 符合拉格朗日定理。
+        </p>
+      </div>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">一个偷懒但正确的判据</span>
+        <p>
+          群阶 <code>n = 10 = 2 × 5</code>。要验证 <code>g</code> 是生成元，只需检查
+          <code>g<sup>n/2</sup> ≠ 1</code> 且 <code>g<sup>n/5</sup> ≠ 1</code>。
+          对 2：<code>2⁵ = 10 ≠ 1</code> ✓，<code>2² = 4 ≠ 1</code> ✓。<br>
+          一般地，只需检验 <code>g<sup>n/q</sup> ≠ 1</code> 对所有<strong>素因子 q | n</strong> 成立。这让检测从 O(n) 降到 O(log n)。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>ZKP 里为什么到处都是群</h2>
+    <p class="lead">
+      因为群提供了一件密码学最需要的事：<strong>正向容易，反向极难</strong>。
+    </p>
+    <div class="fml">
+      已知 <em>g</em> 和 <em>n</em> ，算 <em>g</em><sup><em>n</em></sup> 很快 &nbsp;&nbsp;<span class="op">（O(log n) 次乘法）</span><br>
+      已知 <em>g</em> 和 <em>g</em><sup><em>n</em></sup> ，求 <em>n</em> 极难 &nbsp;&nbsp;<span class="op">（离散对数问题）</span>
+      <span class="lbl">这就是「单向函数」—— 密码学的全部基石</span>
+    </div>
+    <p>
+      这张图能帮你记住三个 𝔾 的关系（01 · 02 和 01 · 03 会展开）：
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">符号</th><th style="width:230px">是什么</th><th>在 ZKP 里的角色</th></tr></thead>
+        <tbody>
+          <tr><td><code>𝔾<sub>1</sub></code></td><td>椭圆曲线上的一个子群（点 + 点加）</td><td>放承诺、放证明里的 A 元素</td></tr>
+          <tr><td><code>𝔾<sub>2</sub></code></td><td>另一条曲线上的子群，坐标在扩域里</td><td>放配对用的另一半</td></tr>
+          <tr><td><code>𝔾<sub>T</sub></code></td><td>有限域的乘法群（一大坨「数」）</td><td>配对的结果落在这里</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      三者放在一起，是因为<strong>配对</strong>能把 <code>𝔾<sub>1</sub> × 𝔾<sub>2</sub></code> 里的东西「搬」到 <code>𝔾<sub>T</sub></code> 里，
+      从而让「指数上的等式」可以在外面一次性检验。没有群的概念，这段话一个字都读不懂。
+    </p>
+  </section>
+
+  <section id="s9">
+    <h2><span class="n">09</span>同态：两个群之间的「翻译」</h2>
+    <p class="lead">
+      01 · 08 有 9 处写「同态承诺」，02 · 02 也提了一次。
+      如果不懂「同态」这个词，那几段只能当黑话跳过 —— 但它其实是整页的设计动机。
+    </p>
+
+    <h3>先回顾：映射是什么</h3>
+    <p>
+      映射就是「给每个输入指定一个输出」的规则，和函数是一回事。
+      写法 <code>φ : A → B</code> 表示「φ 把 A 里的东西送到 B 里」。
+    </p>
+    <div class="fml">
+      <em>φ</em> : 𝔾 → ℍ
+      <span class="lbl">φ 读作 phi（菲）。注意它和欧拉函数 φ(n) 同名不同义 —— 这里只是一个映射的名字</span>
+    </div>
+
+    <h3>同态：翻译之后再算 = 算完再翻译</h3>
+    <p class="lead">
+      这是全部定义，一句话：<strong>同态就是「保持运算结构」的映射。</strong>
+    </p>
+    <div class="fml">
+      <em>φ</em>( <em>a</em> + <em>b</em> ) = <em>φ</em>(<em>a</em>) × <em>φ</em>(<em>b</em>)
+      <span class="lbl">左边：先在 𝔾 里算，再翻译；右边：先各自翻译，再在 ℍ 里算。两条路必须到同一个地方</span>
+    </div>
+    <p>
+      这里的 <code>+</code> 和 <code>×</code> 只是<strong>占位符</strong> ——
+      它们分别是 𝔾 和 ℍ 里的运算，两个群可以各用任意运算，彼此没有关系。<br>
+      这正是同态最有用的一点：<strong>它能把一种运算「翻译」成另一种运算</strong>。
+    </p>
+
+    <h3>例子一：加法变乘法</h3>
+    <div class="fml" style="text-align:left;font-size:13.5px;line-height:2.2">
+      pow<sub>2</sub> : ℤ → ℚ<sup>+</sup> &nbsp;（整数 → 正有理数），&nbsp; <em>n</em> ↦ 2<sup><em>n</em></sup><br><br>
+      2<sup><em>a</em>+<em>b</em></sup> = 2<sup><em>a</em></sup> × 2<sup><em>b</em></sup><br>
+      比如 a=2, b=3： 2<sup>5</sup> = 32 = 4 × 8 = 2<sup>2</sup> × 2<sup>3</sup> &nbsp;<span style="color:#55703F">✓</span>
+    </div>
+    <p>
+      左边是<strong>整数加法</strong>，右边是<strong>正数乘法</strong>。
+      从「指数」到「幂」这个映射，把「加」翻译成了「乘」—— 这就是为什么对数能把乘法变回加法（计算尺的原理）。<br>
+      把底数换成 <code>e</code>，就是教科书里的 <code>exp</code> 函数，性质完全一样，只是数字不好手算。
+    </p>
+
+    <h3>例子二：ZKP 里真正用的那个</h3>
+    <p>
+      椭圆曲线上的「标量乘」也是一个同态。记 <code>G</code> 是曲线上的生成元，定义：
+    </p>
+    <div class="fml">
+      <em>φ</em>( <em>n</em> ) = <em>n</em> · <em>G</em>
+      <span class="lbl">输入一个整数 n，输出曲线上「G 加自己 n 次」那个点</span>
+    </div>
+    <div class="fml" style="text-align:left;font-size:13.5px;line-height:2.1">
+      <em>φ</em>( <em>a</em> + <em>b</em> ) = ( <em>a</em>+<em>b</em> )·<em>G</em> = <em>a</em>·<em>G</em> + <em>b</em>·<em>G</em> = <em>φ</em>(<em>a</em>) + <em>φ</em>(<em>b</em>)
+      <span class="lbl" style="text-align:left">左边是整数加法，右边是曲线上的点加 —— 同样的结构</span>
+    </div>
+    <p>
+      所以「点加」这个看起来奇怪的运算，其实是<strong>整数加法的一个翻译版本</strong>。
+      这也解释了为什么 00 · 02 前面说「曲线点群和 ℤ 遵守同一套定理」。
+    </p>
+
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">同态 ≠ 同构，差一个字但差很多</span>
+        <p>
+          <strong>同态</strong>只要求「保持运算」，不要求一一对应。多个输入可以映到同一个输出。<br>
+          <strong>同构</strong>是「双射的同态」—— 既要保持运算，又要<strong>一一对应、能反推</strong>。<br><br>
+          例子：<code>φ(n) = n·G</code> 是同态。但如果群阶是 q，
+          那 <code>φ(n)</code> 和 <code>φ(n+q)</code> 是同一个点 —— <strong>不一一对应</strong>，所以不是同构。<br>
+          而 <code>𝔾<sub>1</sub></code> 和 <code>𝔾<sub>2</sub></code> 之间<strong>存在</strong>同构（结构一样），
+          但要显式写出这个同构，等价于解离散对数 —— 所以<strong>没人算得出来</strong>，
+          也就不能拿它来搬运元素。这就是为什么配对函数要吃两种不同类型的群元素。
+        </p>
+      </div>
+    </div>
+
+    <h3>为什么叫「同态承诺」</h3>
+    <p>
+      承诺方案（01 · 08）是「先把值锁起来，之后能打开验证」。
+      如果这个方案还额外满足<strong>同态性</strong>，就能做一件很强的事：
+    </p>
+    <div class="fml">
+      <em>c</em>(<em>a</em>) + <em>c</em>(<em>b</em>) = <em>c</em>( <em>a</em> + <em>b</em> )
+      <span class="lbl">两个承诺「相加」，结果正好等于「先相加再承诺」—— 全程不需要打开任何一个</span>
+    </div>
+    <p>
+      这叫<strong>加法同态</strong>。Pedersen 承诺就满足它（因为它的形式是 <code>c = a·G + r·H</code>，
+      两个承诺相加，系数自然合并）。
+    </p>
+    <p>
+      这个性质的用途：你可以在<strong>完全加密的状态下</strong>做加法。
+      比如把很多人的余额承诺加起来，验证总额 —— 而谁都看不到单个余额。
+      02 · 11 的范围证明、Bulletproofs 的聚合，都建立在这个能力上。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">一句话记住</span>
+        <p>
+          <strong>同态 = 能在「加密/承诺状态」下直接做运算。</strong>
+          看到「homomorphic commitment」不用翻译成中文，直接想「这个承诺能相加」。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s10">
+    <h2><span class="n">10</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>群 = <strong>集合 + 一个运算 + 四条规矩</strong>（封闭、结合、单位元、逆元）。</li>
+        <li>群不关心元素「是什么」，只关心「怎么组合」。所以数、余数、旋转、曲线点可以是同一个群。</li>
+        <li><strong>不要求交换律</strong>。要求了才叫阿贝尔群。</li>
+        <li>循环群 = 有一个元素能转出全部。<code>𝔽<sub>p</sub>*</code> 一定是循环群。</li>
+        <li><code>|𝔾|</code> 是群的阶（几个元素），<code>ord(g)</code> 是元素的阶（几步回到 e）。</li>
+        <li><code>g<sup>|𝔾|</sup> = e</code> 恒成立 —— 这是所有标量降模优化的依据。</li>
+        <li>群的密码学价值在于<strong>离散对数难解</strong>：正向算幂容易，反向求指数极难。</li>
+        <li><strong>同态</strong> = 保持运算的映射：<code>φ(a+b) = φ(a)×φ(b)</code>（+ 和 × 只是占位）。同构是「一一对应的同态」。</li>
+        <li>「同态承诺」的意思就是<strong>能对承诺直接做运算</strong>，全程不用打开。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「群就是一堆数。」</span></div>
+      <div class="r"><i>✓</i><div>一堆数只是<strong>集合</strong>。没有运算、没有那四条规矩，它什么都不是。
+        同一个集合 <code>{0,…,6}</code>，配加法是群，配乘法不是（0 没逆元），配「取最大值」也不是。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「𝔾<sub>1</sub> 和 𝔾<sub>2</sub> 是同一个群的两份拷贝，可以互换。」</span></div>
+      <div class="r"><i>✓</i><div>它们<strong>同构</strong>（结构一样），但<strong>不是同一个</strong>，元素不能直接相加或比较。
+        配对函数吃的是「一个 𝔾<sub>1</sub> 元素 + 一个 𝔾<sub>2</sub> 元素」，顺序和类型都不能错。
+        把 𝔾<sub>1</sub> 的点塞进 𝔾<sub>2</sub> 参数位，是真实实现里会被攻击者利用的错误。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「生成元就是随便挑一个元素。」</span></div>
+      <div class="r"><i>✓</i><div>只有<strong>阶等于群阶</strong>的才是生成元。素数阶群里非单位元全是生成元，
+        但合数阶群里大部分元素只生成小子群 —— 这正是小子群攻击（small subgroup attack）的入口。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「群越大越安全。」</span></div>
+      <div class="r"><i>✓</i><div>安全看的是<strong>离散对数问题的难度</strong>，约等于群阶比特数的<strong>一半</strong>
+        （通用算法是 <code>O(√q)</code>，即 Pollard rho）。
+        但更大的群意味着更慢的运算。BN254 的群阶是 254 位，给出约 127 位安全 ——
+        这是「够用 + 以太坊预编译支持」的折中，不是「越大越好」。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="00-01-number-systems.html">
+      <span class="pl">← 上一模块 · 00 · 01</span>
+      <span class="pt">数系地图</span>
+    </a>
+    <a href="00-03-rings-fields.html">
+      <span class="pl">下一模块 · 00 · 03</span>
+      <span class="pt">环与域：为什么非要两个运算 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

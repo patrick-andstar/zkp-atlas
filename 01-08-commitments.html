@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>承诺方案 · Commitment Schemes | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">承诺方案</div>
+  <div class="side-s">01 · Commitment Schemes</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这个模块要解决什么问题</a>
+    <a href="#s2"><span>2</span>直觉：密封信封</a>
+    <a href="#s3"><span>3</span>两个性质</a>
+    <a href="#s4"><span>4</span>哈希承诺</a>
+    <a href="#s5"><span>5</span>Pedersen 承诺</a>
+    <a href="#s6"><span>6</span>Merkle 承诺</a>
+    <a href="#s7"><span>7</span>三者对比</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="00-02-groups.html">← 00 · 02 同态（本页前置）</a>
+    <a href="01-07-hash-rom.html">上一模块 · 哈希与随机预言机</a>
+    <a href="01-09-probability.html">下一模块 · 概率与抽样 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>这个模块要解决什么问题</a></li>
+      <li><a href="#s2"><span>2</span>直觉</a></li>
+      <li><a href="#s3"><span>3</span>两个性质</a></li>
+      <li><a href="#s4"><span>4</span>哈希承诺</a></li>
+      <li><a href="#s5"><span>5</span>Pedersen</a></li>
+      <li><a href="#s6"><span>6</span>Merkle 承诺</a></li>
+      <li><a href="#s7"><span>7</span>三者对比</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>01 数学基础</span><span>/</span><b>01 · 08</b></div>
+
+  <header>
+    <h1>承诺方案：先锁住，后打开</h1>
+    <p class="tagline">
+      「我现在把答案的哈希给你，明天再公布答案。」这句话里藏着两个必须同时成立的性质：
+      <strong>你现在猜不到答案，但明天也改不了答案</strong>。
+      这就是承诺方案，也是所有零知识协议的原子操作。
+    </p>
+    <div class="meta">
+      <span class="hot">基础原语</span>
+      <span>≈ 13 min</span>
+      <span>难度 2 / 5</span>
+      <span>前置：哈希 · 椭圆曲线 · 00 · 02 同态</span>
+      <span>被用于：KZG · Pedersen · 一切协议</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      承诺方案是一个两阶段的协议。第一阶段「锁」，第二阶段「开」。锁上之后，
+      承诺者<strong>既不能改内容，也不能让别人看到内容</strong>。
+    </p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.2">
+      <strong>Commit</strong>( <em>m</em> ) → ( <em>C</em>, <em>r</em> ) &nbsp;&nbsp;<span style="color:#7C8894">← 把消息 m 和随机数 r 变成一个承诺 C</span><br>
+      <strong>Open</strong>( <em>C</em>, <em>m</em>, <em>r</em> ) → 接受 / 拒绝 &nbsp;&nbsp;<span style="color:#7C8894">← 验证者检查 C 确实对应 m</span>
+    </div>
+    <p>
+      为什么需要随机数 <code>r</code>？因为如果只是 <code>C = H(m)</code>，
+      面对一个小的消息空间（比如「是/否」），验证者可以穷举出 <code>m</code>。
+      加入随机盐之后，同一个 <code>m</code> 每次承诺都不同。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">它在 ZKP 里的位置</span>
+        <p>
+          几乎每一个交互式证明的第一句话都是「我先承诺」。Schnorr 里的 <code>R = g<sup>r</sup></code> 是承诺，
+          KZG 里的 <code>[p(τ)]₁</code> 是承诺，FRI 里的 Merkle 根也是承诺。
+          <strong>没有承诺，就没有「先锁后揭」的时间结构，也就没有零知识。</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：把答案放进信封，封口盖上蜡印</h2>
+    <p>
+      你和朋友打赌，你先写下答案，装进信封，封好，放在桌上。第二天打开。
+    </p>
+    <ul>
+      <li><strong>他不能偷看</strong> —— 信封不透明（隐藏性）。</li>
+      <li><strong>你不能换</strong> —— 蜡印完好，换信封会被发现（绑定性）。</li>
+    </ul>
+    <p>
+      承诺方案就是这个信封的数学版本。但有一个微妙之处：数学上「不透明」和「不能换」
+      <strong>不能同时做到完美</strong>。
+    </p>
+    <div class="fml">
+      统计隐藏 + 计算绑定 &nbsp;&nbsp;或&nbsp;&nbsp; 计算隐藏 + 统计绑定
+      <span class="lbl">二选一。不能同时「信息论意义上」安全</span>
+    </div>
+    <p>
+      为什么？直觉上：如果 <code>C</code> 完全不含 <code>m</code> 的信息（统计隐藏），
+      那它必然对应多个可能的 <code>m</code> —— 绑定性就只能在计算上成立（假设对手算不出是哪个）。
+      反之亦然。
+    </p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>两个性质，说清楚「对谁安全」</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">性质</th><th>定义</th><th style="width:170px">防的是谁</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>隐藏性</strong><br><span style="font-size:12px;color:var(--ink3)">hiding</span></td>
+            <td>给定 <code>C</code>，无法区分它对应 <code>m₀</code> 还是 <code>m₁</code></td>
+            <td>接收方（验证者想偷看）</td>
+          </tr>
+          <tr>
+            <td><strong>绑定性</strong><br><span style="font-size:12px;color:var(--ink3)">binding</span></td>
+            <td>无法找到 <code>(m, r) ≠ (m', r')</code> 都能打开同一个 <code>C</code></td>
+            <td>承诺方（证明者想反悔）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>两种安全强度</h3>
+    <ul>
+      <li><strong>统计安全</strong>：即使对手有无穷算力也攻不破。</li>
+      <li><strong>计算安全</strong>：只对多项式时间对手成立，依赖某个困难问题。</li>
+    </ul>
+    <p>
+      ZKP 里最常用的组合是「<strong>统计隐藏 + 计算绑定</strong>」：
+      证明者不能反悔（绑定性靠密码学），但验证者即使有量子计算机也偷看不到（隐藏性靠信息论）。
+      这个组合对零知识最有利。
+    </p>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>最简单的方案：哈希承诺</h2>
+    <div class="fml">
+      <em>C</em> = H( <em>m</em> ‖ <em>r</em> ) , &nbsp;&nbsp; <em>r</em> ← {0,1}<sup><em>λ</em></sup>
+      <span class="lbl">打开时给出 (m, r)，验证者重算哈希比对</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">性质</th><th>成立条件</th></tr></thead>
+        <tbody>
+          <tr><td>隐藏性</td><td>哈希像随机函数 + <code>r</code> 足够长。没有 <code>r</code> 时，小消息空间可被穷举</td></tr>
+          <tr><td>绑定性</td><td>哈希抗碰撞。找到两个不同输入同哈希，就能反悔</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      优点：简单、快、只需要哈希。缺点：<strong>没有代数结构</strong> ——
+      你不能在承诺上做运算（比如「证明两个承诺的和等于第三个」）。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">一个必须注意的细节</span>
+        <p>
+          <code>H(m ‖ r)</code> 里的拼接必须有<strong>唯一解码</strong>。
+          如果 <code>m</code> 长度可变，<code>m="ab", r="c"</code> 和 <code>m="a", r="bc"</code> 可能产生相同输入。
+          标准做法是固定长度或用长度前缀。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>Pedersen 承诺：带同态的那一个</h2>
+    <p class="lead">
+      如果承诺需要支持「加法」，就得用 Pedersen。它是所有同态承诺的原型。
+    </p>
+    <div class="fml">
+      <em>C</em> = <em>m</em>·<em>G</em> + <em>r</em>·<em>H</em>
+      <span class="lbl">G、H 是两个公开的群元素，且没人知道它们之间的离散对数关系</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:90px">符号</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td><code>m</code></td><td>被承诺的消息（一个标量）</td></tr>
+          <tr><td><code>r</code></td><td>随机盲化因子，均匀取自 <code>𝔽<sub>p</sub></code></td></tr>
+          <tr><td><code>G, H</code></td><td>群的两个生成元。<strong>关键：没人知道 <code>H = k·G</code> 里的 k</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>隐藏性：为什么 <code>r</code> 能掩盖 <code>m</code></h3>
+    <p>
+      <code>r·H</code> 在群里均匀分布（因为 <code>r</code> 均匀）。加上 <code>m·G</code> 只是平移，
+      平移后的分布仍然均匀 —— 所以 <code>C</code> 与 <code>m</code> 无关。这是<strong>统计隐藏</strong>。
+    </p>
+
+    <h3>绑定性：为什么必须「没人知道 k」</h3>
+    <p>
+      假设攻击者知道 <code>H = k·G</code>。他想用 <code>(m', r')</code> 打开同一个 <code>C</code>，需要
+    </p>
+    <div class="fml" style="font-size:13px">
+      <em>m</em><em>G</em> + <em>r</em><em>H</em> = <em>m</em>'<em>G</em> + <em>r</em>'<em>H</em>
+      &nbsp;⟹&nbsp;
+      ( <em>m</em> − <em>m</em>' ) = <em>k</em>·( <em>r</em>' − <em>r</em> )
+      <span class="lbl">知道 k 就能解出任意 (m', r')，绑定性崩溃</span>
+    </div>
+    <p>
+      所以 Pedersen 的绑定性等价于「离散对数问题难解」。这也是为什么 <code>G</code> 和 <code>H</code>
+      必须用「nothing up my sleeve」的方式生成 —— 否则创建者可能知道 k。
+    </p>
+
+    <h3>同态性：为什么它这么有用</h3>
+    <div class="fml">
+      <em>C</em><sub>1</sub> + <em>C</em><sub>2</sub> = ( <em>m</em><sub>1</sub> + <em>m</em><sub>2</sub> )·<em>G</em> + ( <em>r</em><sub>1</sub> + <em>r</em><sub>2</sub> )·<em>H</em>
+      <span class="lbl">两个承诺相加，等于「消息相加」的承诺。全程不知道 m₁、m₂</span>
+    </div>
+    <p>
+      这个性质让「余额保密但可验证总和」成为可能：每笔转账承诺一个金额，
+      把所有承诺加起来，验证总和为零 —— 而没人知道任何一笔的金额。
+    </p>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>Merkle 承诺：承诺一个向量</h2>
+    <p>
+      前两种承诺的都是「一个标量」。如果要承诺「一百万个值」，并且能单独打开其中一个，
+      就需要 Merkle 树。
+    </p>
+    <div class="fml" style="font-size:13px">
+      <em>C</em> = MerkleRoot( <em>v</em><sub>1</sub>, …, <em>v</em><sub><em>n</em></sub> )
+      <span class="lbl">打开第 i 项：给出 v_i 和 log n 个兄弟哈希</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">维度</th><th>Merkle</th></tr></thead>
+        <tbody>
+          <tr><td>承诺大小</td><td>32 字节（一个哈希）</td></tr>
+          <tr><td>打开大小</td><td><code>O(log n)</code> 个哈希</td></tr>
+          <tr><td>绑定性</td><td>哈希抗碰撞</td></tr>
+          <tr><td>隐藏性</td><td><strong>无</strong>（叶子是明文哈希，可穷举）</td></tr>
+          <tr><td>同态</td><td>无</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Merkle 承诺没有隐藏性 —— 如果叶子空间小，别人可以逐个试。
+      所以用它的时候通常要加盐，或者只承诺本来就公开的数据（比如 FRI 的求值表）。
+    </p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>三者对比：按需求选</h2>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th style="width:110px">需求</th><th>哈希承诺</th><th>Pedersen</th><th>Merkle</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>承诺单个标量</td><td>✓ 简单</td><td>✓ 带同态</td><td>✗ 过重</td></tr>
+          <tr><td>承诺向量</td><td>✗</td><td>✗</td><td>✓</td></tr>
+          <tr><td>支持同态加法</td><td>✗</td><td><strong>✓</strong></td><td>✗</td></tr>
+          <tr><td>支持单点打开</td><td>✗</td><td>✓（需额外协议）</td><td><strong>✓</strong></td></tr>
+          <tr><td>抗量子</td><td><strong>✓</strong></td><td>✗</td><td><strong>✓</strong></td></tr>
+          <tr><td>典型用途</td><td>Fiat–Shamir、简单承诺</td><td>隐私转账、范围证明</td><td>FRI、空投白名单</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">多项式承诺是这里的「第四种」</span>
+        <p>
+          <a href="02-02-polynomial-commitments.html">KZG</a> 可以看成 Pedersen 的升级版：
+          不是承诺一个标量，而是承诺一整个多项式，并且支持在任意点打开。
+          它把「同态」和「单点打开」两件事同时做到了。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>承诺 = 先锁后开，要求隐藏性和绑定性同时成立。</li>
+        <li>两者不能同时统计安全，必须选一边；ZKP 常用「统计隐藏 + 计算绑定」。</li>
+        <li>哈希承诺简单、抗量子，但没有代数结构。</li>
+        <li>Pedersen 承诺 <code>C = mG + rH</code> 支持同态加法，绑定性依赖 DL 假设。</li>
+        <li>Merkle 承诺适合向量，打开大小 O(log n)，但没有隐藏性。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「承诺就是加密，打开就是解密。」</span></div>
+      <div class="r"><i>✓</i><div>加密有密钥，可逆；承诺<strong>没有密钥</strong>，靠的是「打开时提供原像」。
+        而且承诺必须防「承诺者反悔」，加密不要求这一点。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「哈希承诺已经够用了，不需要 Pedersen。」</span></div>
+      <div class="r"><i>✓</i><div>一旦你需要<strong>在承诺上做运算</strong>（比如证明「输入之和 = 输出之和」），
+        哈希承诺就无能为力了。同态性是 Pedersen 存在的唯一理由。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「Pedersen 里的 H 可以随便取一个点。」</span></div>
+      <div class="r"><i>✓</i><div>如果创建者知道 <code>H = kG</code> 的 k，他就能伪造打开。
+        <code>H</code> 必须用<strong>可验证的随机方式</strong>生成（比如哈希 G 的坐标再映射到曲线）。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「承诺的隐藏性是绝对的。」</span></div>
+      <div class="r"><i>✓</i><div>取决于方案。Pedersen 是统计隐藏（绝对），哈希承诺是计算隐藏（依赖哈希）。
+        Merkle 则<strong>根本没有隐藏性</strong>。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="01-07-hash-rom.html">
+      <span class="pl">← 上一模块 · 01 · 07</span>
+      <span class="pt">哈希与随机预言机：那个「假装随机」的假设</span>
+    </a>
+    <a href="01-09-probability.html">
+      <span class="pl">下一模块 · 01 · 09</span>
+      <span class="pt">概率与抽样：随机点验一次等于验全部 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

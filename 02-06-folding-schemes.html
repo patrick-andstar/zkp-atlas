@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>折叠方案 · Folding Schemes | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">折叠方案</div>
+  <div class="side-s">02 · Folding Schemes</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>要解决的问题</a>
+    <a href="#s2"><span>2</span>直觉：两个证明折成一个</a>
+    <a href="#s3"><span>3</span>Relaxed R1CS</a>
+    <a href="#s4"><span>4</span>折叠公式</a>
+    <a href="#s5"><span>5</span>IVC 怎么用它</a>
+    <a href="#s6"><span>6</span>和递归 SNARK 的区别</a>
+    <a href="#s7"><span>7</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="02-05-fiat-shamir.html">← 上一模块 · Fiat–Shamir</a>
+    <a href="02-07-zero-knowledge.html">下一模块 · 零知识变换 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>要解决的问题</a></li>
+      <li><a href="#s2"><span>2</span>直觉</a></li>
+      <li><a href="#s3"><span>3</span>Relaxed R1CS</a></li>
+      <li><a href="#s4"><span>4</span>折叠公式</a></li>
+      <li><a href="#s5"><span>5</span>IVC</a></li>
+      <li><a href="#s6"><span>6</span>与递归的区别</a></li>
+      <li><a href="#s7"><span>7</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>02 证明构造</span><span>/</span><b>02 · 06</b></div>
+
+  <header>
+    <h1>折叠方案：不验证，先把两个证明折起来</h1>
+    <p class="tagline">
+      递归 SNARK 的每一步，都要在电路里验证前一步的证明 —— 而「验证一个 SNARK」本身是几万条约束。
+      Nova 换了个思路：<strong>先不验证，把新旧两个实例折叠成一个</strong>，最后只证明一次。
+    </p>
+    <div class="meta">
+      <span>≈ 16 min</span>
+      <span>难度 5 / 5</span>
+      <span>前置：R1CS · 承诺</span>
+      <span>后续：IVC · 增量计算</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决的问题</h2>
+    <p class="lead">
+      有一类计算是「一步一步往前推」的：虚拟机执行 100 万条指令、区块链处理 100 万个区块、神经网络跑 100 层。
+      你想证明「这 100 万步全都正确」，但不想为每一步生成一个证明。
+    </p>
+    <p>
+      递归 SNARK 的做法是：第 <code>i</code> 步生成一个证明 <code>π<sub>i</sub></code>，
+      证明「<code>π<sub>i−1</sub></code> 有效，且第 <code>i</code> 步计算正确」。
+      问题在于 —— <strong>验证 <code>π<sub>i−1</sub></code></strong> 这件事本身要被写进电路，
+      而它包含配对运算、哈希、群加法，动辄几万条约束。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:180px">做法</th><th style="width:150px">每步成本</th><th>问题</th></tr></thead>
+        <tbody>
+          <tr><td>每步生成一个 SNARK</td><td>证明生成（秒级）</td><td>100 万步 = 100 万个证明，无法聚合</td></tr>
+          <tr><td>递归 SNARK</td><td>证明生成 + <strong>电路内验证</strong></td><td>电路内验证占 90% 以上开销</td></tr>
+          <tr><td>折叠方案</td><td>一次群运算（微秒级）</td><td>只有最后一步需要生成真正的 SNARK</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      差距是数量级的：递归 SNARK 每步要几十毫秒，折叠方案每步只要几十微秒。
+    </p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：把两张试卷合成一张</h2>
+    <p>
+      你有两张待批改的试卷，每张都有 100 道题。逐个批改要 200 次判断。
+      但如果两张卷子的题目结构完全一样，你可以把「第 1 题 + 第 1 题」「第 2 题 + 第 2 题」……
+      合成一张新卷子 —— 批改这张新卷子，等于同时批改了原来两张。
+    </p>
+    <p>
+      折叠方案就是这个思路：<strong>两个结构相同的约束系统实例，可以线性组合成一个新实例</strong>，
+      而新实例的可满足性蕴含原来两个都可满足。
+    </p>
+    <div class="fml">
+      ( 实例<sub>1</sub> , 实例<sub>2</sub> ) &nbsp;<span class="op">⟶</span>&nbsp; 实例<sub>3</sub>
+      <span class="lbl">实例 3 的规模与实例 1 相同 —— 不是「合并成两倍大」，而是「压回原来大小」</span>
+    </div>
+    <p>
+      关键点：<strong>折叠不产生证明，只产生一个新实例</strong>。
+      所以它极快，但也不提供任何零知识性或可靠性 —— 那些要等到最后一步生成 SNARK 时才获得。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么可以「不验证就折叠」</span>
+        <p>
+          因为折叠是<strong>代数恒等变形</strong>：如果两个输入都满足约束，输出必然满足；
+          如果输出满足，也不能推出输入都满足（这是单向的）。
+          所以折叠本身不安全 —— 它的作用是「累积待验证的工作」，最后一次性交给 SNARK。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>Relaxed R1CS：必须先把约束放松一点</h2>
+    <p class="lead">
+      标准的 R1CS 是 <code>(Az)∘(Bz) = Cz</code>。这个形式<strong>对线性组合不封闭</strong> ——
+      两个满足它的实例加起来，一般不满足。所以 Nova 引入了一个「放松版」。
+    </p>
+    <div class="fml">
+      ( <em>A</em>·<em>z</em> ) <span class="op">∘</span> ( <em>B</em>·<em>z</em> ) <span class="op">=</span> <em>u</em> · ( <em>C</em>·<em>z</em> ) <span class="op">+</span> <em>E</em>
+      <span class="lbl">Relaxed R1CS：多了一个标量 u 和一个误差向量 E</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:80px">符号</th><th>含义</th><th style="width:190px">标准 R1CS 里对应什么</th></tr></thead>
+        <tbody>
+          <tr><td><code>u</code></td><td>标量，称为「松弛因子」</td><td>恒等于 1</td></tr>
+          <tr><td><code>E</code></td><td>误差向量，长度等于约束条数</td><td>恒等于零向量</td></tr>
+          <tr><td><code>z</code></td><td>见证向量</td><td>相同</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      当 <code>u = 1</code> 且 <code>E = 0</code> 时，它就退化成标准 R1CS。
+      所以「放松」的意思是：允许一点点「不满足」，把这点残差记在 <code>E</code> 里。
+    </p>
+    <p>
+      为什么要放松？因为两个实例线性组合后，交叉项会冒出 <code>(Az₁)∘(Bz₂)</code> 这类东西，
+      无法再保持等式严格成立。<strong>把残差吸收进 E，就重新封闭了。</strong>
+    </p>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>折叠公式：一个随机数搞定</h2>
+    <p>给定两个 relaxed 实例 <code>(u₁, E₁, z₁)</code> 和 <code>(u₂, E₂, z₂)</code>，取随机挑战 <code>r</code>：</p>
+    <div class="fml" style="font-size:13px;text-align:left;line-height:2.2">
+      <em>u</em> = <em>u</em><sub>1</sub> + <em>r</em> · <em>u</em><sub>2</sub><br>
+      <em>z</em> = <em>z</em><sub>1</sub> + <em>r</em> · <em>z</em><sub>2</sub><br>
+      <em>E</em> = <em>E</em><sub>1</sub> + <em>r</em>·( <em>A</em><em>z</em><sub>1</sub>∘<em>B</em><em>z</em><sub>2</sub> + <em>A</em><em>z</em><sub>2</sub>∘<em>B</em><em>z</em><sub>1</sub> − <em>u</em><sub>1</sub><em>C</em><em>z</em><sub>2</sub> − <em>u</em><sub>2</sub><em>C</em><em>z</em><sub>1</sub> ) + <em>r</em><sup>2</sup>·<em>E</em><sub>2</sub>
+      <span class="lbl">折叠后的新实例 (u, E, z)，规模与原来单个实例相同</span>
+    </div>
+    <p>
+      这个公式看起来复杂，但来源很朴素：<strong>把两个等式分别乘以 1 和 r，再相加，然后把所有「多出来的项」塞进 E</strong>。
+    </p>
+    <h3>推导：三步</h3>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>各自乘以系数</h4>
+        <p>第一个实例乘 1，第二个乘 <code>r</code>，得到两个等式：</p>
+        <div class="fml" style="font-size:12px">
+          (Az₁)∘(Bz₁) = u₁(Cz₁) + E₁<br>
+          r·[(Az₂)∘(Bz₂)] = r·[u₂(Cz₂) + E₂]
+        </div>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>相加，并注意交叉项</h4>
+        <p>左边相加时，<code>(Az₁+ rAz₂)∘(Bz₁+ rBz₂)</code> 展开会出现四个部分：</p>
+        <div class="fml" style="font-size:12px">
+          (Az₁)∘(Bz₁) + r[(Az₁)∘(Bz₂)+(Az₂)∘(Bz₁)] + r²(Az₂)∘(Bz₂)
+          <span class="lbl">中间那两项就是交叉项，标准 R1CS 里没有它们的位置</span>
+        </div>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>把交叉项和残差都归入 E</h4>
+        <p>
+          定义新的 <code>u = u₁ + r·u₂</code>、<code>z = z₁ + r·z₂</code>，
+          再把所有不能写成 <code>u·(Cz)</code> 的项全部移进 <code>E</code>。
+          整理后就得到上面的公式。
+        </p>
+      </div>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">为什么这一步几乎免费</span>
+        <p>
+          折叠只需要<strong>几次向量加法和两次内积</strong>，全是 <code>O(n)</code> 的域运算，
+          没有配对、没有 FFT、没有证明生成。这就是微秒级的来源。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>IVC：增量可验证计算怎么用它</h2>
+    <p class="lead">
+      IVC（Incrementally Verifiable Computation）要证的是：「函数 F 迭代了 n 次，从 z₀ 得到 zₙ」。
+      用折叠方案的流程如下。
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>初始</h4>
+        <p>从 <code>z₀</code> 开始，构造第一个 relaxed 实例，记录「当前状态是 z₀」。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>每一步：折叠，不证明</h4>
+        <p>
+          计算 <code>z<sub>i+1</sub> = F(z<sub>i</sub>)</code>，把「这一步的计算正确」编码成一个新实例，
+          然后<b>折叠</b>进累加器。全程只做群运算和域运算。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>最后一步：生成一个 SNARK</h4>
+        <p>
+          经过 n 次折叠，你手上有一个「累积了 n 步」的实例。
+          对它生成<strong>一个</strong> SNARK，证明「这个累加器是可满足的」。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">4</div>
+        <h4>验证</h4>
+        <p>
+          验证者只验证这一个 SNARK，就相信了全部 n 步。证明大小与 n 无关。
+        </p>
+      </div>
+    </div>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">代价转移到了哪里</span>
+        <p>
+          折叠把「每步验证」的成本，转移成了「最后一次性证明」。
+          但如果 n 非常大（比如 10<sup>9</sup>），最后那个 SNARK 的电路规模也会很大。
+          实际系统会把折叠和递归组合使用：<strong>每折 1000 步，生成一个 SNARK，再把这个 SNARK 折进上一层</strong>。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>和递归 SNARK 的区别</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">维度</th><th>递归 SNARK</th><th>折叠方案（Nova）</th></tr></thead>
+        <tbody>
+          <tr><td>每步做什么</td><td>生成证明 + 电路内验证前一个证明</td><td>一次线性组合（折叠）</td></tr>
+          <tr><td>每步成本</td><td>几十毫秒</td><td>几十微秒</td></tr>
+          <tr><td>证明数量</td><td>每步一个</td><td>全程只有一个（最后生成）</td></tr>
+          <tr><td>需要配对</td><td>是（如果底层是 pairing-based）</td><td>否</td></tr>
+          <tr><td>零知识</td><td>每步都有</td><td><strong>只有最后一步有</strong></td></tr>
+          <tr><td>适用场景</td><td>需要中间状态可验证</td><td>只需最终结果正确</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      一句话总结：<strong>递归是「每步都结账」，折叠是「先记账，最后一起结」</strong>。
+      前者适合需要中间证明的场景（比如跨链桥要随时验证某段历史），
+      后者适合「我只关心最终结果」的长计算（比如训练验证、虚拟机执行）。
+    </p>
+    <h3>后续发展</h3>
+    <p>
+      Nova 之后出现了 SuperNova（支持不同电路）、HyperNova（支持自定义约束系统）、
+      Protostar（支持高次约束）、ProtoGalaxy（多实例折叠）。
+      共同思路都是「把验证推迟，把折叠做便宜」。
+    </p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>折叠 = 把两个同构实例线性组合成一个，规模不变。</li>
+        <li>必须先把 R1CS 放松成 <code>(Az)∘(Bz) = u(Cz) + E</code>，否则对线性组合不封闭。</li>
+        <li>折叠本身<strong>不提供安全性</strong>，只是累积工作，最后靠一个 SNARK 收口。</li>
+        <li>每步成本从毫秒级降到微秒级，因为只做域运算。</li>
+        <li>折叠与递归可以组合：分级折叠，避免最后那个 SNARK 过大。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「折叠就是一种更快的 SNARK。」</span></div>
+      <div class="r"><i>✓</i><div>它不是证明系统，是<strong>证明的预处理</strong>。折叠本身不产生任何可验证的证明，
+        也不能单独使用。必须配一个底层 SNARK 才有意义。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「折叠后如果可满足，说明每一步都正确。」</span></div>
+      <div class="r"><i>✓</i><div>方向是反的：<strong>每步正确 ⟹ 折叠后可满足</strong>。
+        反过来不成立 —— 一个可满足的折叠实例，可能对应若干组不同的原始实例。
+        安全性来自最后 SNARK 对「折叠关系本身」的证明，不是折叠的代数性质。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「有了折叠就不需要递归了。」</span></div>
+      <div class="r"><i>✓</i><div>两者解决不同问题。折叠省的是<strong>中间验证</strong>，递归省的是<strong>证明体积</strong>。
+        大规模系统通常两者都用：折叠处理步数，递归处理层级。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「折叠后的实例可以单独拿去验证。」</span></div>
+      <div class="r"><i>✓</i><div>不能。折叠后的 <code>(u, E, z)</code> 只是一个<strong>待证明的承诺</strong>，
+        必须再生成一个 SNARK 才具有可验证性。把它直接发给验证者，对方无法判断它是否来自合法计算。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="02-05-fiat-shamir.html">
+      <span class="pl">← 上一模块 · 02 · 05</span>
+      <span class="pt">Fiat–Shamir：把交互协议变成一条消息</span>
+    </a>
+    <a href="02-07-zero-knowledge.html">
+      <span class="pl">下一模块 · 02 · 07</span>
+      <span class="pt">零知识变换：加个随机数就够了 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

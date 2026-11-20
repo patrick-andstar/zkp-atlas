@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>符号黑话 · 希腊字母、数学符号与缩写速查 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">符号黑话</div>
+  <div class="side-s">00 · Notation</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>怎么用这一页</a>
+    <a href="#s2"><span>2</span>希腊字母：读音 + 用途</a>
+    <a href="#s3"><span>3</span>集合符号</a>
+    <a href="#s4"><span>4</span>逻辑与等式</a>
+    <a href="#s5"><span>5</span>求和、乘积、渐进</a>
+    <a href="#s6"><span>6</span>缩写速查表</a>
+    <a href="#s7"><span>7</span>实战：念 KZG 验证式</a>
+  </nav>
+  <div class="pager-b">
+    <a href="00-04-roots.html">← 上一模块 · 根与单位根</a>
+    <a href="00-06-linear-algebra.html">下一模块 · 线性代数 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>怎么用这一页</a></li>
+      <li><a href="#s2"><span>2</span>希腊字母</a></li>
+      <li><a href="#s3"><span>3</span>集合符号</a></li>
+      <li><a href="#s4"><span>4</span>逻辑与等式</a></li>
+      <li><a href="#s5"><span>5</span>求和与渐进</a></li>
+      <li><a href="#s6"><span>6</span>缩写速查</a></li>
+      <li><a href="#s7"><span>7</span>实战读公式</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>00 零基础前置</span><span>/</span><b>00 · 05</b></div>
+
+  <header>
+    <h1>符号黑话：把公式念出声</h1>
+    <p class="tagline">
+      很多人读论文卡住，不是不懂原理，是<strong>念不出那个符号</strong> ——
+      眼睛扫过去只看到一团符号，脑子就自动关掉了。
+      这一页是速查表：读音、意思、在 ZKP 里通常指什么。建议存成书签。
+    </p>
+    <div class="meta">
+      <span class="hot">随时查阅</span>
+      <span>≈ 10 min</span>
+      <span>难度 1 / 5</span>
+      <span>前置：无</span>
+      <span>用途：读论文 / 读 spec / 看代码</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>怎么用这一页</h2>
+    <p class="lead">
+      这页不用一次读完。建议：<strong>第一次扫一遍希腊字母表</strong>（5 分钟，混个脸熟），
+      之后遇到念不出的符号再回来查。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">一条实用建议</span>
+        <p>
+          读论文时，遇到不认识的符号<strong>先在草稿上抄一遍、念一遍</strong>。
+          「ζ」念成「zeta（泽塔）」之后，你的大脑会把它当成一个词而不是一个障碍物 ——
+          这听起来很傻，但确实有效。符号恐惧大多来自「无法发音」。
+        </p>
+      </div>
+    </div>
+
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">先说个已知缺陷：𝔽 和 𝔾 会显示成 F 和 G</span>
+        <p>
+          本图谱里的 <code>𝔽<sub>p</sub></code>、<code>𝔾<sub>1</sub></code> 用的是 Unicode 的「双线体」字符
+          （U+1D53D、U+1D53E）。实测这台机器上<strong>没有任何已安装字体包含这两个字符</strong>，
+          浏览器会退回到普通字母，于是你看到的是 <strong>F<sub>p</sub></strong> 和 <strong>G<sub>1</sub></strong>。<br>
+          而 <code>ℤ ℚ ℝ ℂ ℕ</code> 是另一批字符（U+2124 等），字体里有，所以能正常显示成双线体 ——
+          这就是为什么同一段话里有的字母双线、有的不双线。<br>
+          <strong>不影响理解</strong>：看到 <code>F</code> 就当「有限域」，看到 <code>G</code> 就当「群」。
+          实在别扭的话，可以装一个 Symbola 或 STIX Two Math 字体，就正常了。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>希腊字母：读音 + 在 ZKP 里的典型用途</h2>
+    <p>
+      「典型用途」这一列不是规定，只是<strong>统计上的惯例</strong>。
+      不同论文会重用同一个字母，读的时候要看上下文声明。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:70px">小写</th><th style="width:70px">大写</th><th style="width:130px">读音</th><th>ZKP 里通常指</th></tr></thead>
+        <tbody>
+          <tr><td><code>α</code></td><td><code>Α</code></td><td><strong>alpha</strong> 阿尔法</td><td>证明里的第一个盲化因子；Groth16 的 α</td></tr>
+          <tr><td><code>β</code></td><td><code>Β</code></td><td><strong>beta</strong> 贝塔</td><td>第二个盲化因子；R1CS 里的系数</td></tr>
+          <tr><td><code>γ</code></td><td><code>Γ</code></td><td><strong>gamma</strong> 伽马</td><td>Groth16 的 γ；也指「随机挑战」</td></tr>
+          <tr><td><code>δ</code></td><td><code>Δ</code></td><td><strong>delta</strong> 德尔塔</td><td>Groth16 的 δ；也指「差值」「增量」</td></tr>
+          <tr><td><code>ε</code></td><td><code>Ε</code></td><td><strong>epsilon</strong> 艾普西龙</td><td><strong>可忽略概率 / 安全裕度</strong>，最常见是这个</td></tr>
+          <tr><td><code>ζ</code></td><td><code>Ζ</code></td><td><strong>zeta</strong> 泽塔</td><td><strong>求值点</strong>（KZG 的挑战点）</td></tr>
+          <tr><td><code>η</code></td><td><code>Η</code></td><td><strong>eta</strong> 伊塔</td><td>折叠方案里的随机系数</td></tr>
+          <tr><td><code>θ</code></td><td><code>Θ</code></td><td><strong>theta</strong> 西塔</td><td>角度；也用作固定参数</td></tr>
+          <tr><td><code>ι</code></td><td><code>Ι</code></td><td><strong>iota</strong> 约塔</td><td>下标 / 索引，偶尔见到</td></tr>
+          <tr><td><code>κ</code></td><td><code>Κ</code></td><td><strong>kappa</strong> 卡帕</td><td>安全参数（少用，多用 λ）</td></tr>
+          <tr><td><code>λ</code></td><td><code>Λ</code></td><td><strong>lambda</strong> 兰姆达</td><td><strong>安全参数</strong>（如 128）；也指线性组合系数</td></tr>
+          <tr><td><code>μ</code></td><td><code>Μ</code></td><td><strong>mu</strong> 缪</td><td>均值；也指「μ 多项式」</td></tr>
+          <tr><td><code>ν</code></td><td><code>Ν</code></td><td><strong>nu</strong> 纽</td><td>次数 / 序号</td></tr>
+          <tr><td><code>ξ</code></td><td><code>Ξ</code></td><td><strong>xi</strong> 克西</td><td>随机挑战（常用作第二个点）</td></tr>
+          <tr><td><code>π</code></td><td><code>Π</code></td><td><strong>pi</strong> 派</td><td>小写：<strong>证明</strong>（proof）本身；大写：连乘</td></tr>
+          <tr><td><code>ρ</code></td><td><code>Ρ</code></td><td><strong>rho</strong> 柔</td><td>随机性 / 采样率</td></tr>
+          <tr><td><code>σ</code></td><td><code>Σ</code></td><td><strong>sigma</strong> 西格玛</td><td>小写：<strong>置换</strong>（permutation）；大写：<strong>连加</strong></td></tr>
+          <tr><td><code>τ</code></td><td><code>Τ</code></td><td><strong>tau</strong> 陶</td><td><strong>可信设置的 trapdoor</strong>（toxic waste）</td></tr>
+          <tr><td><code>υ</code></td><td><code>Υ</code></td><td><strong>upsilon</strong> 宇普西龙</td><td>少见</td></tr>
+          <tr><td><code>φ</code></td><td><code>Φ</code></td><td><strong>phi</strong> 菲</td><td>欧拉函数 φ(n)；也指 Goldilocks 常数</td></tr>
+          <tr><td><code>χ</code></td><td><code>Χ</code></td><td><strong>chi</strong> 凯</td><td>特征标；偶尔做随机挑战</td></tr>
+          <tr><td><code>ψ</code></td><td><code>Ψ</code></td><td><strong>psi</strong> 普西</td><td>辅助多项式</td></tr>
+          <tr><td><code>ω</code></td><td><code>Ω</code></td><td><strong>omega</strong> 欧米伽</td><td>小写：<strong>单位根</strong>；大写：渐进下界</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">三个最容易混的</span>
+        <p>
+          <strong>1. <code>ω</code> 有两种意思</strong>：小写 omega 在 ZKP 里几乎总是「单位根」，
+          但在算法复杂度里 <code>ω(·)</code> 是「渐进下界」（很少用）。<br>
+          <strong>2. <code>Σ</code> 有两种意思</strong>：大写是连加符号，小写 <code>σ</code> 是置换。<br>
+          <strong>3. <code>π</code> 不是圆周率</strong>：ZKP 论文里的 <code>π</code> 九成指「证明」这个对象本身。
+          看到「output π」不要以为在算圆面积。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>集合符号：论文里最基础的一层</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">符号</th><th style="width:150px">怎么读</th><th>意思</th><th style="width:230px">例子</th></tr></thead>
+        <tbody>
+          <tr><td><code>∈</code></td><td>属于</td><td>左边是右边集合的元素</td><td><code>x ∈ 𝔽<sub>p</sub></code></td></tr>
+          <tr><td><code>∉</code></td><td>不属于</td><td>不是元素</td><td><code>0 ∉ 𝔽<sub>p</sub>*</code></td></tr>
+          <tr><td><code>⊂</code> <code>⊆</code></td><td>包含于</td><td>子集（⊆ 允许相等）</td><td><code>ℕ ⊂ ℤ</code></td></tr>
+          <tr><td><code>∪</code></td><td>并集</td><td>两边合起来</td><td><code>A ∪ B</code></td></tr>
+          <tr><td><code>∩</code></td><td>交集</td><td>两边共同的部分</td><td><code>A ∩ B</code></td></tr>
+          <tr><td><code>∅</code></td><td>空集</td><td>什么都没有</td><td><code>A ∩ B = ∅</code></td></tr>
+          <tr><td><code>|A|</code> <code>#A</code></td><td>基数</td><td>集合里<strong>有几个元素</strong></td><td><code>|𝔾| = q</code></td></tr>
+          <tr><td><code>A × B</code></td><td>笛卡尔积</td><td>所有 (a,b) 组合</td><td><code>𝔾<sub>1</sub> × 𝔾<sub>2</sub></code></td></tr>
+          <tr><td><code>{x : P(x)}</code></td><td>满足 P 的 x</td><td>集合构造式</td><td><code>{x : x² = 1}</code></td></tr>
+          <tr><td><code>→</code></td><td>映到</td><td>函数从哪到哪</td><td><code>f : 𝔽<sub>p</sub> → 𝔽<sub>p</sub></code></td></tr>
+          <tr><td><code>↦</code></td><td>映射为</td><td>具体元素的对应规则</td><td><code>x ↦ x²</code></td></tr>
+          <tr><td><code>∘</code></td><td>复合</td><td>先做右边再做左边</td><td><code>(f ∘ g)(x) = f(g(x))</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t"><code>→</code> 和 <code>↦</code> 的区别</span>
+        <p>
+          <code>f : A → B</code> 说的是「f 这个函数，输入来自 A，输出落在 B」—— 讲的是<strong>类型</strong>。<br>
+          <code>x ↦ x²</code> 说的是「把 x 变成 x²」—— 讲的是<strong>规则</strong>。<br>
+          论文常写成 <code>f : 𝔽<sub>p</sub> → 𝔽<sub>p</sub>, x ↦ x² + 1</code>，一句话把两件都说清。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>逻辑与等式：判断句的写法</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">符号</th><th style="width:150px">怎么读</th><th>意思</th><th style="width:220px">例子</th></tr></thead>
+        <tbody>
+          <tr><td><code>=</code></td><td>等于</td><td>两边<strong>完全相同</strong></td><td><code>a = b</code></td></tr>
+          <tr><td><code>≡</code></td><td>同余于</td><td>除以模数后余数相同</td><td><code>15 ≡ 1 (mod 7)</code></td></tr>
+          <tr><td><code>:=</code></td><td>定义为</td><td>左边是<strong>新起的名字</strong></td><td><code>ω := g<sup>2</sup></code></td></tr>
+          <tr><td><code>≈</code></td><td>约等于 / 近似于</td><td>不是精确相等</td><td><code>|𝔾| ≈ 2²⁵⁴</code></td></tr>
+          <tr><td><code>≠</code></td><td>不等于</td><td>—</td><td><code>a ≠ 0</code></td></tr>
+          <tr><td><code>⟹</code></td><td>推出 / 蕴含</td><td>左边成立则右边必然成立</td><td><code>p | ab ⟹ p|a 或 p|b</code></td></tr>
+          <tr><td><code>⟺</code></td><td>当且仅当</td><td>两边<strong>等价</strong>，可以互推</td><td><code>r 是根 ⟺ (x−r) 整除 f</code></td></tr>
+          <tr><td><code>∀</code></td><td>对任意</td><td>所有情况都成立</td><td><code>∀ a ∈ 𝔽<sub>p</sub>*</code></td></tr>
+          <tr><td><code>∃</code></td><td>存在</td><td>至少有一个</td><td><code>∃ x 使 ax ≡ 1</code></td></tr>
+          <tr><td><code>∎</code> <code>□</code></td><td>证毕</td><td>证明结束的标记</td><td>—</td></tr>
+          <tr><td><code>⊥</code></td><td>矛盾</td><td>反证法里「推出不可能」</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t"><code>≡</code> 是初学最大的坑</span>
+        <p>
+          <code>a ≡ b (mod p)</code> <strong>不是</strong>「a 和 b 差不多」。
+          它的意思是「a − b 能被 p 整除」，是一个<strong>精确的、要么真要么假</strong>的判断。<br>
+          <code>15 ≡ 1 (mod 7)</code> 是完全正确的等式，不是近似。<br>
+          另外，<code>≡</code> 在「定义恒等」的语境下也读作「恒等于」，看上下文。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>求和、乘积、渐进：一眼看懂规模</h2>
+
+    <h3>求和与乘积</h3>
+    <div class="fml" style="text-align:left;font-size:13.5px;line-height:2.2">
+      Σ<sub><em>i</em>=1</sub><sup><em>n</em></sup> <em>a<sub>i</sub></em> &nbsp;=&nbsp; <em>a</em><sub>1</sub> + <em>a</em><sub>2</sub> + ⋯ + <em>a<sub>n</sub></em> &nbsp;&nbsp;<span style="color:#7C8894">← 全加起来</span><br>
+      Π<sub><em>i</em>=1</sub><sup><em>n</em></sup> <em>a<sub>i</sub></em> &nbsp;=&nbsp; <em>a</em><sub>1</sub> · <em>a</em><sub>2</sub> · ⋯ · <em>a<sub>n</sub></em> &nbsp;&nbsp;<span style="color:#7C8894">← 全乘起来</span><br>
+      <em>f</em>(<em>x</em>) = Σ<sub><em>i</em>=0</sub><sup><em>d</em></sup> <em>c<sub>i</sub></em> <em>x</em><sup><em>i</em></sup> &nbsp;&nbsp;<span style="color:#A6432B">← 多项式的标准写法，d 是次数</span>
+    </div>
+
+    <h3>渐进符号：只说「大概多快」</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">符号</th><th style="width:140px">读作</th><th>意思</th><th style="width:200px">例子</th></tr></thead>
+        <tbody>
+          <tr><td><code>O(f)</code></td><td>大 O</td><td><strong>上界</strong>：最多这么快</td><td><code>O(n log n)</code> = FFT</td></tr>
+          <tr><td><code>o(f)</code></td><td>小 o</td><td>严格小于这个量级</td><td><code>o(n)</code></td></tr>
+          <tr><td><code>Θ(f)</code></td><td>大 Theta</td><td><strong>紧界</strong>：就是这个量级</td><td><code>Θ(n²)</code></td></tr>
+          <tr><td><code>Ω(f)</code></td><td>大 Omega</td><td><strong>下界</strong>：至少这么慢</td><td><code>Ω(n)</code></td></tr>
+          <tr><td><code>negl(λ)</code></td><td>可忽略函数</td><td>比任何多项式的倒数都小</td><td>安全证明里的「概率小到不用管」</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <code>negl(λ)</code> 在密码学论文里出现频率极高。
+      说「敌手优势是 <code>negl(λ)</code>」，意思是<strong>随着安全参数 λ 增大，这个概率衰减得比任何 1/poly(λ) 都快</strong> ——
+      换句话说，实际上不可能成功。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么不用「秒」来说复杂度</span>
+        <p>
+          因为硬件在变。<code>O(n log n)</code> 是<strong>与机器无关</strong>的描述，
+          而「3.2 秒」换台机器就变了。论文里给秒数的，都会附上具体硬件配置。
+          看 benchmark 数字时，先找那张「CPU / 内存 / 核心数」的表。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>缩写速查：论文标题里那一串大写字母</h2>
+    <h3>证明系统</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">缩写</th><th style="width:230px">全称</th><th>一句话解释</th></tr></thead>
+        <tbody>
+          <tr><td><code>ZKP</code></td><td>Zero-Knowledge Proof</td><td>零知识证明，总称</td></tr>
+          <tr><td><code>SNARK</code></td><td>Succinct Non-interactive ARgument of Knowledge</td><td>简短、非交互、需要可信设置（通常）。<strong>证明几百字节</strong></td></tr>
+          <tr><td><code>STARK</code></td><td>Scalable Transparent ARgument of Knowledge</td><td>透明（无可信设置）、抗量子，但<strong>证明大得多</strong></td></tr>
+          <tr><td><code>NIZK</code></td><td>Non-Interactive Zero-Knowledge</td><td>非交互零知识，SNARK 的上位概念</td></tr>
+          <tr><td><code>IVC</code></td><td>Incrementally Verifiable Computation</td><td>增量可验证计算：一步步往前叠证明</td></tr>
+          <tr><td><code>PCD</code></td><td>Proof-Carrying Data</td><td>带证明的数据，IVC 的推广</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>中间表示与构造</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">缩写</th><th style="width:230px">全称</th><th>一句话解释</th></tr></thead>
+        <tbody>
+          <tr><td><code>R1CS</code></td><td>Rank-1 Constraint System</td><td>「每个约束只含一次乘法」的方程组，Groth16 的输入格式</td></tr>
+          <tr><td><code>QAP</code></td><td>Quadratic Arithmetic Program</td><td>把 R1CS 翻译成多项式问题，Groth16 的关键一步</td></tr>
+          <tr><td><code>PLONKish</code></td><td>—</td><td>PLONK 风格的门/线布局，Halo2、Plonky3 都用</td></tr>
+          <tr><td><code>PCP</code></td><td>Probabilistically Checkable Proof</td><td>概率可检验证明，理论源头</td></tr>
+          <tr><td><code>IOP</code></td><td>Interactive Oracle Proof</td><td>交互式预言机证明，STARK 的理论框架</td></tr>
+          <tr><td><code>PCS</code></td><td>Polynomial Commitment Scheme</td><td>多项式承诺，所有现代方案的公共零件</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>具体算法与工具</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">缩写</th><th style="width:180px">是什么</th><th>一句话解释</th></tr></thead>
+        <tbody>
+          <tr><td><code>KZG</code></td><td>Kate–Zaverucha–Goldberg</td><td>基于配对的 PCS，证明恒定 48 字节，<strong>需可信设置</strong></td></tr>
+          <tr><td><code>FRI</code></td><td>Fast Reed–Solomon IOP</td><td>基于哈希的 PCS，透明，证明大小 O(log²n)</td></tr>
+          <tr><td><code>IPA</code></td><td>Inner Product Argument</td><td>基于内积的 PCS，Bulletproofs 用，证明 O(log n)</td></tr>
+          <tr><td><code>MSM</code></td><td>Multi-Scalar Multiplication</td><td>「一堆点各乘一个数再加起来」，<strong>证明端最大瓶颈</strong></td></tr>
+          <tr><td><code>NTT</code></td><td>Number Theoretic Transform</td><td>有限域上的 FFT，多项式运算的引擎</td></tr>
+          <tr><td><code>CRS</code> / <code>SRS</code></td><td>Common Reference String / Structured RS</td><td>可信设置产出的那坨公开参数</td></tr>
+          <tr><td><code>MPC</code></td><td>Multi-Party Computation</td><td>多方安全计算，可信设置仪式靠它</td></tr>
+          <tr><td><code>ROM</code></td><td>Random Oracle Model</td><td>把哈希当成真随机函数的理想化假设</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>密码学假设</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">缩写</th><th style="width:230px">全称</th><th>一句话解释</th></tr></thead>
+        <tbody>
+          <tr><td><code>DL</code></td><td>Discrete Logarithm</td><td>已知 g 和 g<sup>x</sup>，求 x 很难</td></tr>
+          <tr><td><code>CDH</code></td><td>Computational Diffie–Hellman</td><td>已知 g<sup>a</sup>, g<sup>b</sup>，算 g<sup>ab</sup> 很难</td></tr>
+          <tr><td><code>DDH</code></td><td>Decisional Diffie–Hellman</td><td>判断某个值是不是 g<sup>ab</sup> 很难</td></tr>
+          <tr><td><code>q-SDH</code></td><td>q-Strong Diffie–Hellman</td><td>KZG 的安全性所依赖的假设</td></tr>
+          <tr><td><code>OWF</code></td><td>One-Way Function</td><td>正向好算、反向难算的函数</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>实战：把 KZG 的验证式念出来</h2>
+    <p class="lead">
+      拿一个真实公式练手。这是 KZG 多项式承诺的验证等式（02 · 02 会完整推导）：
+    </p>
+    <div class="fml">
+      <em>e</em>( <em>C</em> − [<em>v</em>]<em>G</em><sub>1</sub> , <em>G</em><sub>2</sub> ) <span class="op">=</span> <em>e</em>( <em>π</em> , [<em>τ</em> − <em>z</em>]<em>G</em><sub>2</sub> )
+      <span class="lbl">第一次看：一团符号。逐段拆开就有意义了</span>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">符号</th><th style="width:190px">念作</th><th>在这条式子里是什么</th></tr></thead>
+        <tbody>
+          <tr><td><code>e(·,·)</code></td><td>配对函数 e</td><td>双线性映射，吃两个群元素，吐一个 𝔾<sub>T</sub> 里的数</td></tr>
+          <tr><td><code>C</code></td><td>承诺 C</td><td>证明者对多项式 f 的承诺（一个 𝔾<sub>1</sub> 点）</td></tr>
+          <tr><td><code>v</code></td><td>值 v</td><td>声称的 <code>f(z) = v</code> 里的那个 v</td></tr>
+          <tr><td><code>[v]G<sub>1</sub></code></td><td>v 倍 G₁</td><td>把标量 v 乘到 G<sub>1</sub> 这个点上，得到同类型的点</td></tr>
+          <tr><td><code>C − [v]G<sub>1</sub></code></td><td>C 减去 v 倍的 G₁</td><td>群里的<strong>点减法</strong>（就是加逆元）</td></tr>
+          <tr><td><code>π</code></td><td>证明 π</td><td>商多项式 q 的承诺 —— <strong>不是圆周率</strong></td></tr>
+          <tr><td><code>τ</code></td><td>tau</td><td>可信设置里的 trapdoor，已销毁，没人知道</td></tr>
+          <tr><td><code>z</code></td><td>z</td><td>求值点（要证明 f 在 z 处的值）</td></tr>
+          <tr><td><code>[τ − z]G<sub>2</sub></code></td><td>tau 减 z 倍的 G₂</td><td>用 τ 和 z 组合出的一个 𝔾<sub>2</sub> 点，验证者能自己算</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">记号会变，别被吓到</span>
+        <p>
+          这里写成 <code>[v]G<sub>1</sub></code>，有些论文（尤其 PLONK 系）写成 <code>[v]<sub>1</sub></code> ——
+          指的是同一个东西：<code>v · G<sub>1</sub></code>。<br>
+          照此类推，<code>[1]<sub>2</sub></code> 就是 <code>1 · G<sub>2</sub></code>，也就是 <code>G<sub>2</sub></code> 本身。
+          看到 <code>[·]<sub>1</sub></code> 就读作「在 𝔾<sub>1</sub> 里」，<code>[·]<sub>2</sub></code> 读作「在 𝔾<sub>2</sub> 里」。<br>
+          02 · 02 用的是后一种写法，别以为是两个不同的公式。
+        </p>
+      </div>
+    </div>
+
+    <p>连起来读，这条式子说的是：</p>
+
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">用大白话翻译</span>
+        <p>
+          「配对之后，<strong>（承诺减掉声称的值）× 单位点</strong> 的结果，
+          等于 <strong>证明 π 乘以（τ 减 z）</strong> 的结果。」<br>
+          如果 <code>v</code> 真的等于 <code>f(z)</code>，这两个配对值必然相等；
+          如果证明者撒谎，无论怎么构造 π 都对不上。<br>
+          <strong>整条式子只做了一件事：在没有 τ 的情况下，验证 <code>f(z) = v</code>。</strong>
+        </p>
+      </div>
+    </div>
+    <p>
+      注意这里用到了三层知识：
+    </p>
+    <ul>
+      <li><strong>00 · 02 群</strong>：为什么 <code>C − [v]G<sub>1</sub></code> 有意义（点在群里能加减）</li>
+      <li><strong>00 · 04 根</strong>：为什么 π 存在等价于 <code>f(z)=v</code>（因式定理）</li>
+      <li><strong>01 · 03 配对</strong>：为什么 <code>e</code> 能把「指数上的关系」搬到外面比较</li>
+    </ul>
+    <p>
+      这就是为什么前面几页必须先读 —— <strong>一个公式里往往压着三层前置知识</strong>。
+      念不出来，通常不是智商问题，是缺了其中一层。
+    </p>
+  </section>
+
+  <div class="recap" style="margin-top:40px">
+    <h4>这一页最该记住的</h4>
+    <ul>
+      <li>读不出符号就先<strong>念一遍</strong>，发音能解除大半恐惧。</li>
+      <li><code>≡</code> 是精确同余，不是近似。<code>π</code> 在 ZKP 里通常是「证明」。</li>
+      <li><code>→</code> 讲类型，<code>↦</code> 讲规则。</li>
+      <li>看到大写缩写先判断它属于哪一类：证明系统 / 中间表示 / 算法 / 假设。</li>
+      <li>一个公式念不懂，多半是缺了某层前置 —— 回去补那一层，别硬啃。</li>
+      <li>这页是速查表，不必按顺序读完。<strong>下一步直接去 00 · 06 线性代数</strong>，那才是 02 层的硬门槛。</li>
+    </ul>
+  </div>
+
+  <div class="pager">
+    <a href="00-04-roots.html">
+      <span class="pl">← 上一模块 · 00 · 04</span>
+      <span class="pt">根与单位根</span>
+    </a>
+    <a href="00-06-linear-algebra.html">
+      <span class="pl">下一模块 · 00 · 06</span>
+      <span class="pt">线性代数：向量、内积、矩阵、秩 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fiat–Shamir · 从交互到非交互 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">Fiat–Shamir</div>
+  <div class="side-s">02 · Fiat–Shamir Transform</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>要解决的问题</a>
+    <a href="#s2"><span>2</span>直觉：自己抛硬币</a>
+    <a href="#s3"><span>3</span>Schnorr 协议</a>
+    <a href="#s4"><span>4</span>变换的三个步骤</a>
+    <a href="#s5"><span>5</span>安全性来自哪里</a>
+    <a href="#s6"><span>6</span>transcript 必须绑定什么</a>
+    <a href="#s7"><span>7</span>Frozen Heart 事故</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="02-04-permutation-arguments.html">← 上一模块 · 置换论证</a>
+    <a href="02-06-folding-schemes.html">下一模块 · 折叠方案 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>要解决的问题</a></li>
+      <li><a href="#s2"><span>2</span>直觉</a></li>
+      <li><a href="#s3"><span>3</span>Schnorr 协议</a></li>
+      <li><a href="#s4"><span>4</span>变换三步骤</a></li>
+      <li><a href="#s5"><span>5</span>安全性来源</a></li>
+      <li><a href="#s6"><span>6</span>transcript 绑定</a></li>
+      <li><a href="#s7"><span>7</span>Frozen Heart</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>02 证明构造</span><span>/</span><b>02 · 05</b></div>
+
+  <header>
+    <h1>Fiat–Shamir：把「你问我答」变成一条消息</h1>
+    <p class="tagline">
+      几乎所有零知识协议最初都是交互式的：验证者抛一个随机挑战，证明者回应。
+      但区块链上没有「现场」—— 证明必须是一条静态消息。
+      Fiat–Shamir 用一个哈希函数，把「别人随机问你」变成了「自己随机问自己」。
+    </p>
+    <div class="meta">
+      <span class="hot">关键转换</span>
+      <span>≈ 14 min</span>
+      <span>难度 2 / 5</span>
+      <span>前置：哈希 · 承诺</span>
+      <span>后续：所有非交互证明</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决的问题</h2>
+    <p class="lead">
+      交互式零知识证明有一个硬性前提：<strong>验证者必须在场</strong>。
+      他要现场生成一个随机数，证明者当场回应。这个来回至少要三轮。
+    </p>
+    <p>这在三种场景下直接失效：</p>
+    <ul>
+      <li><strong>上链</strong>：智能合约不能「暂停等你说完」。交易一旦提交就是终局。</li>
+      <li><strong>转发</strong>：Alice 的证明想给 Bob 看，但 Bob 没参与当时的挑战生成，凭什么相信？</li>
+      <li><strong>异步</strong>：证明生成和验证可能相隔几天，中间没有人保持会话。</li>
+    </ul>
+    <p>
+      所以需要一种方法，把「验证者的随机挑战」替换成某种<strong>证明者自己算得出来、但无法预测、也无法事后更改</strong>的东西。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">这个需求听起来像悖论</span>
+        <p>
+          「自己生成随机数」本来是可以作弊的 —— 证明者可以反复试，直到随机数对他有利。
+          关键在于：<strong>挑战必须由「已经固定下来的承诺」唯一决定</strong>，
+          而承诺一旦发出就改不了。哈希函数恰好提供了这种「先锁后揭」的性质。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：把骰子换成「封在胶囊里的骰子」</h2>
+    <p>
+      交互式协议里，骰子是验证者掷的。证明者不能控制结果，所以他必须真的能应对任意挑战。
+    </p>
+    <p>
+      现在换一种玩法：证明者先把所有承诺写在一张纸上，<strong>把纸放进保险箱</strong>，
+      然后根据这张纸的内容算出一个数 —— 这个数就是挑战。
+    </p>
+    <p>
+      为什么这算「随机」？因为纸上的内容是他早就定死的，他没法为了让挑战好看而改纸。
+      而哈希函数的输出看起来完全随机，他也没法预测。
+    </p>
+    <div class="fml">
+      <em>c</em> = H( 所有公开信息 ‖ 所有承诺 )
+      <span class="lbl">c 就是「挑战」。它由哈希算出，不由任何人掷骰子</span>
+    </div>
+    <p>
+      核心直觉：<strong>哈希把「时间」压进了「值」里</strong>。
+      你先承诺、后算挑战，这个顺序被哈希函数强制住了 —— 改了承诺，挑战就变，之前的应答全部作废。
+    </p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>先看一个最干净的交互式协议：Schnorr</h2>
+    <p class="lead">
+      Schnorr 协议用来证明「我知道 <code>x</code>，使得 <code>X = g<sup>x</sup></code>」。
+      它只有三步，是所有 Fiat–Shamir 讲解的标准载体。
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>承诺（Commitment）</h4>
+        <p>证明者随机取 <code>r</code>，计算 <code>R = g<sup>r</sup></code>，发给验证者。</p>
+        <p><strong>作用</strong>：把 <code>r</code> 锁死。之后他不能改 <code>r</code>，否则 <code>R</code> 对不上。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>挑战（Challenge）</h4>
+        <p>验证者随机取 <code>c ∈ 𝔽<sub>p</sub></code>，发回去。</p>
+        <p><strong>作用</strong>：引入证明者无法预测的随机性。这是零知识性和可靠性同时成立的关键。</p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>应答（Response）</h4>
+        <p>证明者计算 <code>s = r + c·x mod p</code>，发给验证者。</p>
+        <p><strong>作用</strong>：把「我知道 x」这件事编码进一个标量里，同时被 <code>r</code> 盲化，不泄露 <code>x</code>。</p>
+      </div>
+    </div>
+    <p>验证者检查：</p>
+    <div class="fml">
+      <em>g</em><sup><em>s</em></sup> <span class="op">=</span> <em>R</em> · <em>X</em><sup><em>c</em></sup>
+      <span class="lbl">左边 = g<sup>r+cx</sup>；右边 = g<sup>r</sup>·g<sup>cx</sup>。显然相等</span>
+    </div>
+    <p>
+      为什么这能证明「知道 x」？因为要构造出通过验证的 <code>s</code>，必须同时满足
+      <code>s = r + c·x</code> —— 而 <code>c</code> 是验证者临时给的，证明者无法预知，
+      所以只能真的知道 <code>x</code> 才能算出 <code>s</code>。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">三个性质各由什么保证</span>
+        <p>
+          <strong>完备性</strong>：代数恒等式，必然成立。<br>
+          <strong>可靠性</strong>：<code>c</code> 随机，猜中的概率是 <code>1/p</code>。<br>
+          <strong>零知识</strong>：<code>s</code> 被 <code>r</code> 盲化，给定 <code>s</code> 反推 <code>x</code> 等价于解离散对数。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>变换：三步变成一步</h2>
+    <p>把上面的协议改写，只做一件事 —— 把「验证者随机取 c」换成「哈希算 c」。</p>
+
+    <h3>变换前（交互式，3 轮）</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:80px">轮次</th><th style="width:120px">发送方</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Prover → Verifier</td><td><code>R = g<sup>r</sup></code></td></tr>
+          <tr><td>2</td><td>Verifier → Prover</td><td><code>c ← 𝔽<sub>p</sub></code>（真随机）</td></tr>
+          <tr><td>3</td><td>Prover → Verifier</td><td><code>s = r + c·x</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>变换后（非交互，1 条消息）</h3>
+    <div class="fml" style="font-size:13px;text-align:left;line-height:2.1">
+      证明者本地计算：<br>
+      &nbsp;&nbsp;<em>R</em> = <em>g</em><sup><em>r</em></sup><br>
+      &nbsp;&nbsp;<em>c</em> = H( <em>g</em>, <em>X</em>, <em>R</em> ) &nbsp;&nbsp;<span style="color:#7C8894">← 关键：c 由 R 决定</span><br>
+      &nbsp;&nbsp;<em>s</em> = <em>r</em> + <em>c</em>·<em>x</em><br>
+      然后发送三元组 <em>π</em> = ( <em>R</em>, <em>s</em> )
+      <span class="lbl">验证者拿到 π 后，自己重算 c = H(g, X, R)，再检查 g<sup>s</sup> = R·X<sup>c</sup></span>
+    </div>
+    <p>
+      整个过程不再需要验证者在线。<strong>证明变成了一条可转发、可存储、可上链的消息</strong>。
+    </p>
+
+    <h3>为什么这不是「自己出题自己答」</h3>
+    <p>
+      表面上看，证明者确实同时在扮演两个角色。但关键在于：<strong>他只能在承诺之后才知道题目</strong>。
+    </p>
+    <p>
+      假设他想作弊 —— 随便挑一个 <code>s</code>，然后反推一个能通过验证的 <code>R</code>。
+      他需要 <code>R = g<sup>s</sup>·X<sup>−c</sup></code>，而 <code>c = H(g,X,R)</code> 又依赖 <code>R</code>。
+      这是一个自指方程：<code>c</code> 由 <code>R</code> 决定，<code>R</code> 又由 <code>c</code> 决定。
+      要解开它，就得找到一个哈希的不动点 —— 这被当作计算上不可行。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">这就是「随机预言机」假设</span>
+        <p>
+          严格的安全性证明要求把 <code>H</code> 建模成一个<strong>真正的随机函数</strong>：
+          对任何新输入，输出均匀随机、不可预测。真实哈希只是它的近似。
+          在这个模型下，证明者要作弊，等价于在查询哈希之前就猜中它的输出。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>安全性到底来自哪里</h2>
+    <p>Fiat–Shamir 不是一个「免费的转换」。它的安全性依赖两个前提，缺一不可。</p>
+
+    <h3>前提一：哈希被建模为随机预言机</h3>
+    <p>
+      如果哈希有结构性弱点（比如输出分布不均、能找到碰撞），挑战就可能被预测或操纵。
+      现实中我们假设 SHA-256、Poseidon 这类函数足够接近随机预言机 —— 但这是<strong>假设</strong>，不是定理。
+    </p>
+
+    <h3>前提二：挑战绑定了一切该绑定的东西</h3>
+    <p>
+      这是实现层面的事，也是事故高发区。挑战必须覆盖：
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:160px">必须绑定的</th><th>为什么</th></tr></thead>
+        <tbody>
+          <tr><td>所有公开输入</td><td>否则攻击者可以换一个对自己有利的 statement，复用同一份证明</td></tr>
+          <tr><td>所有承诺</td><td>否则承诺与挑战脱钩，可以事后构造</td></tr>
+          <tr><td>协议标识 / 域分隔符</td><td>否则跨协议重放（把 A 协议的证明用在 B 协议）</td></tr>
+          <tr><td>验证密钥</td><td>否则跨电路重放</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      形式化地说，transcript 必须满足：<strong>改变其中任何一项，挑战都会变</strong>。
+      这通常通过把所有内容按固定顺序序列化后一次性哈希来实现。
+    </p>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>transcript 该怎么构造</h2>
+    <p>一个正确的 transcript 通常是这样的累积结构：</p>
+    <div class="fml" style="font-size:12.5px;text-align:left;line-height:2.1">
+      <em>t</em><sub>0</sub> = H( 协议名 ‖ 验证密钥 ‖ 公开输入 )<br>
+      <em>t</em><sub>1</sub> = H( <em>t</em><sub>0</sub> ‖ 承诺<sub>1</sub> ) &nbsp;⟹&nbsp; <em>c</em><sub>1</sub> = <em>t</em><sub>1</sub><br>
+      <em>t</em><sub>2</sub> = H( <em>t</em><sub>1</sub> ‖ 承诺<sub>2</sub> ) &nbsp;⟹&nbsp; <em>c</em><sub>2</sub> = <em>t</em><sub>2</sub><br>
+      ……
+      <span class="lbl">链式哈希：每一个挑战都继承了之前所有信息，改任何一环都会导致后续全变</span>
+    </div>
+    <p>
+      这种「链式」结构的好处是：不需要每次都把所有历史重算一遍，只需要把上一个哈希值带进来。
+      成本是 O(1)，安全性是「全历史绑定」。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">最常见的实现错误</span>
+        <p>
+          只哈希了「承诺」，忘了哈希「公开输入」。后果是：攻击者可以拿一份合法证明，
+          换一个公开输入去验证 —— 因为挑战没变，证明依然通过。
+          在 Rollup 里，这等于可以伪造任意状态根。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>Frozen Heart：真实发生过的事故</h2>
+    <p class="lead">
+      2022 年 4 月，Trail of Bits 披露了一类影响多个零知识证明库的漏洞，命名为 Frozen Heart。
+      它不是数学问题，是<strong>transcript 绑定不全</strong>的实现问题。
+    </p>
+    <h3>漏洞形态</h3>
+    <p>
+      某些实现里，生成挑战时只哈希了部分承诺，漏掉了另一些公共参数。
+      攻击者于是可以：
+    </p>
+    <ol>
+      <li>固定住挑战 <code>c</code>（因为影响它的输入没变）；</li>
+      <li>反复调整未被绑定的那些参数，直到证明通过；</li>
+      <li>由于 <code>c</code> 不变，原本应该「每个证明只能试一次」的限制失效了。</li>
+    </ol>
+    <p>
+      正常协议里，猜错一次挑战就作废，攻击成功率是 <code>1/p</code>。
+      但挑战固定之后，可以无限次试错，成功率变成 1。
+    </p>
+    <h3>影响范围</h3>
+    <p>
+      Bulletproofs 的多个实现、若干 PLONK 变体、以及一些自研的 SNARK 库受影响。
+      修复方式很简单：<strong>把该绑定的全部绑进 transcript</strong>。
+      但发现问题花了很久，因为所有测试都通过 —— 数学是对的，只是输入少了。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">教训</span>
+        <p>
+          Fiat–Shamir 的安全性<strong>完全取决于 transcript 的完整性</strong>。
+          这不是「顺手加个哈希」的事，每一处遗漏都是一个可被放大的攻击面。
+          审计时应该问：「如果把任何一个公开值改掉，挑战会变吗？」
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>Fiat–Shamir 把「验证者掷骰子」换成「哈希算挑战」，交互式变非交互式。</li>
+        <li>安全性依赖：哈希 ≈ 随机预言机 + transcript 绑定完整。</li>
+        <li>证明者不能作弊，因为挑战依赖承诺，而承诺已经锁死 —— 自指方程无法解开。</li>
+        <li>典型三元组：<code>(R, s)</code>，验证者重算 <code>c = H(g,X,R)</code> 后检查 <code>g<sup>s</sup> = R·X<sup>c</sup></code>。</li>
+        <li>Frozen Heart 证明：漏绑一个公开值，就能让攻击从 <code>1/p</code> 变成 1。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「Fiat–Shamir 只是把随机数换成哈希，很平凡。」</span></div>
+      <div class="r"><i>✓</i><div>它是一个<strong>有安全性证明的变换</strong>，但证明在随机预言机模型下才成立。
+        而且工程上极易出错 —— 过去五年里这类漏洞反复出现，不是「平凡」能形容的。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「哈希一下整个证明就行了。」</span></div>
+      <div class="r"><i>✓</i><div>顺序很重要。必须<strong>先有承诺、再算挑战、最后算应答</strong>。
+        如果先算应答再哈希，承诺就失去约束力，攻击者可以构造出通过验证的假证明。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「用了 Fiat–Shamir 就不需要可信设置了。」</span></div>
+      <div class="r"><i>✓</i><div>两件完全不同的事。Fiat–Shamir 解决「交互」，可信设置解决「公共参数怎么来」。
+        Groth16 两者都需要；STARK 只要前者。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「挑战可以随便取，只要看起来随机。」</span></div>
+      <div class="r"><i>✓</i><div>挑战必须<strong>不可预测且不可重放</strong>。用固定值、时间戳、区块号当挑战，
+        都可能被攻击者提前知道并针对性地构造承诺。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="02-04-permutation-arguments.html">
+      <span class="pl">← 上一模块 · 02 · 04</span>
+      <span class="pt">置换论证：证明两个格子是同一个变量</span>
+    </a>
+    <a href="02-06-folding-schemes.html">
+      <span class="pl">下一模块 · 02 · 06</span>
+      <span class="pt">折叠方案：把两个实例折成一个 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

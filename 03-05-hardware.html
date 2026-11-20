@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>硬件加速 · MSM 与 NTT | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">硬件加速</div>
+  <div class="side-s">03 · Hardware Acceleration</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>瓶颈在哪</a>
+    <a href="#s2"><span>2</span>MSM 为什么贵</a>
+    <a href="#s3"><span>3</span>Pippenger 算法</a>
+    <a href="#s4"><span>4</span>GPU 加速</a>
+    <a href="#s5"><span>5</span>FPGA 与 ASIC</a>
+    <a href="#s6"><span>6</span>分布式证明</a>
+    <a href="#s7"><span>7</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="03-04-aggregation.html">← 上一模块 · 递归与聚合</a>
+    <a href="03-06-circuit-auditing.html">下一模块 · 电路审计 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>瓶颈在哪</a></li>
+      <li><a href="#s2"><span>2</span>MSM 为什么贵</a></li>
+      <li><a href="#s3"><span>3</span>Pippenger</a></li>
+      <li><a href="#s4"><span>4</span>GPU</a></li>
+      <li><a href="#s5"><span>5</span>FPGA 与 ASIC</a></li>
+      <li><a href="#s6"><span>6</span>分布式证明</a></li>
+      <li><a href="#s7"><span>7</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>03 工程实现</span><span>/</span><b>03 · 05</b></div>
+
+  <header>
+    <h1>硬件加速：八成的算力花在两个操作上</h1>
+    <p class="tagline">
+      不管你用 Groth16 还是 PLONK，证明生成的时间分布都惊人的一致：
+      <strong>MSM 占 50–70%，NTT 占 20–40%</strong>。
+      优化这两件事，等于优化整个证明器；优化别的地方，基本是白费。
+    </p>
+    <div class="meta">
+      <span>≈ 14 min</span>
+      <span>难度 3 / 5</span>
+      <span>前置：椭圆曲线 · FFT</span>
+      <span>产出：更快的证明服务</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>先测量，再优化</h2>
+    <p class="lead">
+      「证明太慢」是症状，不是诊断。得先知道时间花在哪。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">阶段</th><th>占比</th><th>能否并行</th></tr></thead>
+        <tbody>
+          <tr><td>见证生成（填值）</td><td>5–15%</td><td>部分</td></tr>
+          <tr><td><strong>MSM</strong></td><td>50–70%</td><td>高度可并行</td></tr>
+          <tr><td><strong>NTT</strong></td><td>20–40%</td><td>高度可并行</td></tr>
+          <tr><td>域运算 / 哈希</td><td>5–10%</td><td>部分</td></tr>
+          <tr><td>序列化</td><td>&lt; 2%</td><td>否</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      注意 MSM 和 NTT 都是<strong>数据并行</strong>的：每个点、每个蝶形互不依赖。
+      这决定了它们适合 GPU 和 FPGA，而不适合单核优化。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">一个反直觉的事实</span>
+        <p>
+          很多人第一反应是「优化域乘法」。但域乘法已经是纳秒级，
+          再怎么优化也只有 2–3 倍空间。而 MSM 的算法优化能带来 <strong>10–20 倍</strong>。
+          <strong>选对算法比选对指令集重要得多。</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>MSM 为什么这么贵</h2>
+    <div class="fml">
+      MSM：<em>C</em> = Σ<sub><em>i</em>=1</sub><sup><em>n</em></sup> <em>a</em><sub><em>i</em></sub> · <em>P</em><sub><em>i</em></sub>
+      <span class="lbl">n 个标量 × n 个椭圆曲线点，求和</span>
+    </div>
+    <p>
+      朴素做法：每个 <code>a<sub>i</sub>P<sub>i</sub></code> 用倍加算法算，需要 <code>~256</code> 次点加。
+      总共 <code>256n</code> 次点加。n = 100 万时，就是 2.56 亿次点加。
+    </p>
+    <p>
+      每次点加要做一次域求逆（或至少一次乘法），在 254 位域上约 100 纳秒。
+      算下来 <strong>25 秒</strong> —— 这只是 MSM，还没算 NTT。
+    </p>
+    <h3>为什么不能「预先算好」</h3>
+    <p>
+      因为 <code>P<sub>i</sub></code> 是承诺点，依赖电路和设置，每次证明都不同；
+      <code>a<sub>i</sub></code> 是见证，每次交易都变。
+      两边都在变，没有可复用的中间结果。
+    </p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>Pippenger：把「逐个算」变成「分批算」</h2>
+    <p class="lead">
+      核心思想：<strong>不要分别算每个标量乘，而是把标量按二进制位「分桶」</strong>。
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>把标量切成窗口</h4>
+        <p>每个 <code>a<sub>i</sub></code> 按 <code>c</code> 位一组切开（比如 c = 16）。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>同窗口值的点加到一起</h4>
+        <p>
+          对每一组，把「窗口值相同」的 <code>P<sub>i</sub></code> 累加到一个桶里。
+          桶的数量是 <code>2<sup>c</sup></code>。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>跨桶累加</h4>
+        <p>
+          从高位桶开始，做「累加器 = 累加器 + 桶」并倍点，逐位推进。
+          这一步把 <code>2<sup>c</sup></code> 个桶压缩成一个结果。
+        </p>
+      </div>
+    </div>
+    <div class="fml" style="font-size:13px">
+      复杂度：<em>O</em>( <em>n</em> · <em>λ</em> / log <em>n</em> ) &nbsp;&nbsp;而非 &nbsp;&nbsp;<em>O</em>( <em>n</em> · <em>λ</em> )
+      <span class="lbl">λ 是标量位宽（254）。n 越大，节省越明显</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">n</th><th>朴素</th><th>Pippenger</th><th>加速</th></tr></thead>
+        <tbody>
+          <tr><td>2<sup>10</sup></td><td>~ 26 万次点加</td><td>~ 2 万次</td><td>13×</td></tr>
+          <tr><td>2<sup>16</sup></td><td>~ 1600 万次</td><td>~ 30 万次</td><td>50×</td></tr>
+          <tr><td>2<sup>20</sup></td><td>~ 2.7 亿次</td><td>~ 2000 万次</td><td>130×</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>GPU：目前性价比最高的选择</h2>
+    <p>
+      显卡有几千个核心，正好适合 MSM 和 NTT 这种「同一操作重复几百万次」的负载。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:140px">方案</th><th>特点</th><th style="width:140px">典型加速</th></tr></thead>
+        <tbody>
+          <tr><td><strong>ICICLE</strong></td><td>Ingonyama 开源，支持 CUDA，集成到多个框架</td><td>10–30×</td></tr>
+          <tr><td><strong>cuZK</strong></td><td>学术方案，针对 Groth16 优化</td><td>10–20×</td></tr>
+          <tr><td><strong>自研 CUDA</strong></td><td>深度定制，能榨干硬件</td><td>20–50×</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>GPU 的真实瓶颈：显存带宽</h3>
+    <p>
+      MSM 是「读大量点、做少量运算」的负载，瓶颈在<strong>显存带宽</strong>而不是算力。
+      一个 100 万点的 MSM 需要读 32 MB 的点数据，来回几次就吃掉大部分时间。
+    </p>
+    <p>
+      所以优化重点往往不是「算得更快」，而是「减少数据传输」：<strong>把点压缩存储、
+      把桶放在片上内存、把结果批量回传</strong>。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">别忽略 PCIe 传输</span>
+        <p>
+          把数据从 CPU 内存拷到显存要时间。如果每次证明都重新传一遍，可能抵消掉 GPU 的加速。
+          生产系统会在显存里常驻<strong>设置参数</strong>（proving key），只传见证。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>FPGA 与 ASIC：快，但不灵活</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">硬件</th><th>优势</th><th>劣势</th><th style="width:120px">适合谁</th></tr></thead>
+        <tbody>
+          <tr><td><strong>CPU</strong></td><td>灵活、便宜、好部署</td><td>核数少</td><td>所有人（起步）</td></tr>
+          <tr><td><strong>GPU</strong></td><td>性价比高、生态成熟</td><td>显存限制、功耗</td><td>中型证明服务</td></tr>
+          <tr><td><strong>FPGA</strong></td><td>功耗低、可重配置</td><td>开发周期长、需要硬件工程师</td><td>大型矿场式部署</td></tr>
+          <tr><td><strong>ASIC</strong></td><td>极致能效</td><td>流片成本极高、算法一变就废</td><td>几乎没人做（ZKP 算法还在演进）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      ASIC 在 ZKP 领域几乎没有实际部署，原因很现实：<strong>算法变化太快</strong>。
+      一颗芯片流片要两年，两年后可能整个证明系统都换了。风险收益比不划算。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">一个例外：Filecoin 的矿机</span>
+        <p>
+          Filecoin 的 PoRep 用固定的 Groth16 电路，算法稳定，所以出现了专用硬件。
+          这说明<strong>只有算法冻结的场景才值得做 ASIC</strong>。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>分布式证明：一台机器不够怎么办</h2>
+    <p>
+      当电路大到单机内存放不下（比如 <code>2²⁸</code> 约束，需要上百 GB），
+      就必须把证明拆分到多台机器。
+    </p>
+    <h3>拆分的两种粒度</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">粒度</th><th>怎么拆</th><th>通信开销</th></tr></thead>
+        <tbody>
+          <tr><td><strong>按操作拆</strong></td><td>MSM 分片到多台机器，各自算一部分再汇总</td><td>低（只汇总最终点）</td></tr>
+          <tr><td><strong>按电路拆</strong></td><td>把电路切成子电路，各自生成证明再聚合</td><td>高（要处理跨片连线）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      第一种简单，但受限于「单次 MSM 的规模」；第二种能处理任意大的电路，
+      但切分本身会引入额外的约束（用于连接子电路）。
+    </p>
+    <h3>代表方案</h3>
+    <ul>
+      <li><strong>Snarkify</strong>：把证明流程容器化，按阶段分布式调度。</li>
+      <li><strong>=nil; Foundation</strong>：把电路编译成「证明市场」可执行的任务。</li>
+      <li><strong>Gensyn</strong>：把训练验证拆成可并行的子任务。</li>
+    </ul>
+    <p>
+      共同思路：<strong>把「证明生成」变成一个可水平扩展的服务</strong>，
+      而不是一个单机程序。
+    </p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>MSM 占 50–70%，NTT 占 20–40%，其他都是零头。</li>
+        <li>Pippenger 把 MSM 从 <code>O(nλ)</code> 降到 <code>O(nλ/log n)</code>，n 大时加速上百倍。</li>
+        <li>GPU 的瓶颈是显存带宽，不是算力。</li>
+        <li>FPGA 适合稳定负载，ASIC 在 ZKP 里基本不可行（算法变太快）。</li>
+        <li>超大电路靠分布式拆分，按操作拆比按电路拆简单。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「上 GPU 就能快十倍。」</span></div>
+      <div class="r"><i>✓</i><div>要看你有没有把数据放在显存里、有没有用对算法。
+        一个没优化的 CUDA 实现，可能比优化过的 CPU 还慢（因为传输开销）。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「优化编译器比优化运行时更有效。」</span></div>
+      <div class="r"><i>✓</i><div>编译器能减少 20–30% 的约束，但 MSM 的算法优化能带来 10–20 倍。
+        <strong>先看瓶颈在哪，再决定优化哪一层。</strong></div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「多卡并行就是线性加速。」</span></div>
+      <div class="r"><i>✓</i><div>受限于通信和同步。MSM 分片的扩展性较好（接近线性），
+        但 NTT 的分片需要频繁交换数据，通常只能做到 60–80% 效率。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「硬件加速能解决所有性能问题。」</span></div>
+      <div class="r"><i>✓</i><div>如果电路本身有十倍冗余（比如该用查表的地方用了逐位分解），
+        加速硬件只是把浪费算得更快。<strong>先优化约束，再优化硬件。</strong></div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="03-04-aggregation.html">
+      <span class="pl">← 上一模块 · 03 · 04</span>
+      <span class="pt">递归与聚合：把一千个证明压成一个</span>
+    </a>
+    <a href="03-06-circuit-auditing.html">
+      <span class="pl">下一模块 · 03 · 06</span>
+      <span class="pt">电路审计：约束不足是头号杀手 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

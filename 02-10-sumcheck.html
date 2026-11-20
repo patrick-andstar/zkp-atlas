@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sumcheck 协议 · 逐变量降次 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">Sumcheck 协议</div>
+  <div class="side-s">02 · Sumcheck &amp; GKR</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这个模块要解决什么问题</a>
+    <a href="#s2"><span>2</span>直觉：一次消掉一个变量</a>
+    <a href="#s3"><span>3</span>协议的完整流程</a>
+    <a href="#s4"><span>4</span>为什么是 O(log n)</a>
+    <a href="#s5"><span>5</span>Spartan：R1CS 的新解法</a>
+    <a href="#s6"><span>6</span>GKR 协议</a>
+    <a href="#s7"><span>7</span>MPC-in-the-head</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="02-09-recursion.html">← 上一模块 · 递归组合</a>
+    <a href="02-11-range-proofs.html">下一模块 · 范围证明 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>要解决的问题</a></li>
+      <li><a href="#s2"><span>2</span>直觉</a></li>
+      <li><a href="#s3"><span>3</span>协议流程</a></li>
+      <li><a href="#s4"><span>4</span>为什么是 O(log n)</a></li>
+      <li><a href="#s5"><span>5</span>Spartan</a></li>
+      <li><a href="#s6"><span>6</span>GKR</a></li>
+      <li><a href="#s7"><span>7</span>MPC-in-the-head</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>02 证明构造</span><span>/</span><b>02 · 10</b></div>
+
+  <header>
+    <h1>Sumcheck：一次消掉一个变量</h1>
+    <p class="tagline">
+      前面所有方案都靠「把约束打包成多项式」。Sumcheck 换了个方向：
+      <strong>把「求和」这件事本身变成可验证的</strong>。
+      Spartan、Lasso、Binius、Jolt，以及几乎所有 zkVM，都建立在它之上。
+    </p>
+    <div class="meta">
+      <span class="hot">现代主流路线</span>
+      <span>≈ 16 min</span>
+      <span>难度 4 / 5</span>
+      <span>前置：多项式 · 概率抽样</span>
+      <span>被用于：Spartan · Lasso · zkVM</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      很多计算最后都归结成一个求和：<strong>一个多元多项式在超立方体上所有取值的和，等于某个公开值</strong>。
+    </p>
+    <div class="fml">
+      <em>H</em> = Σ<sub><em>x</em><sub>1</sub>,…,<em>x</em><sub><em>n</em></sub> ∈ {0,1}</sub>
+      <em>g</em>( <em>x</em><sub>1</sub>, …, <em>x</em><sub><em>n</em></sub> )
+      <span class="lbl">一共有 2ⁿ 项。直接算要 2ⁿ 次求值 —— 对 n=30 就是十亿次</span>
+    </div>
+    <p>
+      验证者当然不可能自己算这 2ⁿ 项。但如果证明者声称 <code>H</code> 是这个值，
+      验证者怎么用<strong>远少于 2ⁿ 的工作量</strong>确认？
+    </p>
+    <p>
+      Sumcheck 给出的答案是：<strong>按变量逐个验证，每轮只做常数次求值</strong>。
+      总共 n 轮，每轮把变量个数减一。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">和 QAP 路线的根本区别</span>
+        <p>
+          QAP 是「把约束编译成多项式，然后用承诺锁住」。Sumcheck 是
+          「<strong>让验证者跟着证明者逐层剥洋葱</strong>」，每一层都用一个随机点来检验上一层。
+          前者需要承诺整个多项式，后者只需要承诺少量求值。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：把 n 维立方体压成一维</h2>
+    <p>
+      想象一个 <code>n</code> 维的超立方体，每个顶点上有一个值。<code>H</code> 是所有顶点值之和。
+    </p>
+    <p>
+      第一轮：把「除第一个变量外」的所有变量都求和掉，得到一个只关于 <code>x₁</code> 的一元多项式
+      <code>g₁(x₁)</code>。它只有两个点有意义：<code>g₁(0)</code> 和 <code>g₁(1)</code>。
+      如果证明者没说谎，<code>g₁(0) + g₁(1) = H</code>。
+    </p>
+    <p>
+      验证者检查这个等式，然后<strong>随机取一个点 <code>r₁</code></strong>，要求证明者继续
+      「在 <code>x₁ = r₁</code> 这个切片上」做同样的事。
+    </p>
+    <div class="fml">
+      Σ<sub><em>x</em><sub>1</sub></sub> <em>g</em><sub>1</sub>(<em>x</em><sub>1</sub>) = <em>H</em>
+      &nbsp;&nbsp;<span class="op">⟶</span>&nbsp;&nbsp;
+      <em>g</em><sub>1</sub>(<em>r</em><sub>1</sub>) = Σ<sub><em>x</em><sub>2</sub>…</sub> <em>g</em>(<em>r</em><sub>1</sub>, <em>x</em><sub>2</sub>, …)
+      <span class="lbl">第一轮的结论，变成第二轮的输入</span>
+    </div>
+    <p>
+      重复 n 次，最后验证者手上只剩一个具体的点 <code>(r₁,…,rₙ)</code>，
+      直接求值 <code>g(r₁,…,rₙ)</code> 看是否等于证明者最后的声称值。
+    </p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>协议的完整流程</h2>
+    <p class="lead">
+      把上面的直觉写成协议。证明者每轮发一个<strong>一元多项式</strong>，验证者每轮回一个<strong>随机点</strong>。
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>第 1 轮</h4>
+        <p>
+          证明者发 <code>g₁(X₁) = Σ<sub>x₂…xₙ</sub> g(X₁, x₂, …, xₙ)</code>，
+          声称 <code>g₁(0) + g₁(1) = H</code>。
+        </p>
+        <p>验证者检查这个等式，若通过，随机取 <code>r₁</code>。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>第 i 轮</h4>
+        <p>
+          证明者发 <code>g<sub>i</sub>(X<sub>i</sub>) = Σ<sub>x<sub>i+1</sub>…</sub> g(r₁,…,r<sub>i−1</sub>, X<sub>i</sub>, …)</code>，
+          声称 <code>g<sub>i</sub>(0) + g<sub>i</sub>(1) = g<sub>i−1</sub>(r<sub>i−1</sub>)</code>。
+        </p>
+        <p>验证者检查，随机取 <code>r<sub>i</sub></code>。</p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>最后一轮</h4>
+        <p>
+          验证者拿到 <code>r₁…rₙ</code>，直接计算 <code>g(r₁,…,rₙ)</code>（这是一次求值），
+          检查它是否等于证明者最后声称的值。
+        </p>
+      </div>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:140px">角色</th><th>每轮做什么</th><th style="width:150px">总工作量</th></tr></thead>
+        <tbody>
+          <tr><td>证明者</td><td>算出一个一元多项式（次数有界）</td><td><code>O(2ⁿ)</code> 一次，之后 <code>O(2ⁿ)</code></td></tr>
+          <tr><td>验证者</td><td>检查两个求值 + 取随机数</td><td><code>O(n)</code> 次域运算 + 1 次 <code>g</code> 求值</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">关键的不对称</span>
+        <p>
+          证明者仍然要做 <code>O(2ⁿ)</code> 的工作（他得真的把和算出来），
+          但<strong>验证者只要 <code>O(n)</code></strong>。这正好符合 SNARK 的目标：
+          把成本压在证明者身上。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>为什么是 O(log n)：次数界的作用</h2>
+    <p>
+      <code>n</code> 轮之后，验证者只做了 <code>n</code> 次检查。但总共 <code>2ⁿ</code> 项，
+      怎么可能只查 <code>n</code> 次就够？
+    </p>
+    <p>
+      答案在<strong>次数界</strong>上。如果 <code>g</code> 对每个变量的次数都不超过 <code>d</code>，
+      那么每轮的 <code>g<sub>i</sub></code> 次数也不超过 <code>d</code>。
+    </p>
+    <div class="fml">
+      deg<sub><em>X</em><sub><em>i</em></sub></sub> <em>g</em> ≤ <em>d</em>
+      &nbsp;&nbsp;⟹&nbsp;&nbsp;
+      每轮的 <em>g</em><sub><em>i</em></sub> 只有 <em>d</em>+1 个系数要发
+      <span class="lbl">d 通常是 2 或 3，所以每轮通信量是常数</span>
+    </div>
+    <p>
+      而两个不同的 <code>d</code> 次多项式，最多在 <code>d</code> 个点上相等。
+      所以证明者想在某一轮撒谎而不被发现，概率不超过 <code>d/|𝔽|</code>。
+    </p>
+    <div class="fml">
+      Pr[ 作弊成功 ] ≤ <em>n</em> · <em>d</em> / |𝔽|
+      <span class="lbl">n 轮，每轮最多 d/|F| 的失败概率，用并集界累加</span>
+    </div>
+    <p>
+      代入 <code>n = 30</code>、<code>d = 2</code>、<code>|𝔽| = 2²⁵⁴</code>：
+      失败概率约 <code>2⁻²⁴⁴</code>，可以忽略。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这就是为什么「次数界」是前提</span>
+        <p>
+          如果 <code>g</code> 的次数没有上界（比如它是个任意函数），证明者可以发一个
+          「在随机点上恰好正确、但整体不对」的多项式，验证者无法区分。
+          <strong>Sumcheck 只对低次多项式有效</strong>，这不是可选的假设。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>Spartan：用 Sumcheck 重做 R1CS</h2>
+    <p class="lead">
+      Spartan（2020）的思路：R1CS 的约束 <code>(Az)∘(Bz) = Cz</code> 可以写成一个求和断言，
+      然后用 Sumcheck 验证，<strong>不需要 QAP、不需要 FFT</strong>。
+    </p>
+    <div class="fml" style="font-size:12.5px">
+      Σ<sub><em>i</em>=1</sub><sup><em>m</em></sup>
+      <em>eq</em>(<em>i</em>, <em>r</em>) ·
+      [ ( <em>A</em><em>z</em> )<sub><em>i</em></sub> ( <em>B</em><em>z</em> )<sub><em>i</em></sub> − ( <em>C</em><em>z</em> )<sub><em>i</em></sub> ] = 0
+      <span class="lbl">eq(i,r) 是「选择器」：随机点 r 让这个加权和在「所有约束都成立」时才为零</span>
+    </div>
+    <p>
+      这个式子的好处：
+    </p>
+    <ul>
+      <li><strong>不用 FFT</strong>：省掉了 <code>O(n log n)</code> 的插值，证明者更快。</li>
+      <li><strong>不用可信设置</strong>：配合 FRI 或 IPA 就能做透明方案。</li>
+      <li><strong>证明更小</strong>：Spartan 的证明比 Aurora 小一个数量级。</li>
+    </ul>
+
+    <h3>省掉 FFT 到底省了多少</h3>
+    <p>
+      QAP 路线里，证明者必须做两次 NTT（一次正向、一次逆向），复杂度 <code>O(n log n)</code>。
+      对 <code>n = 2²⁰</code> 的电路，这是几千万次域运算，占总时间的 20–40%。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px">环节</th><th>QAP 路线</th><th>Spartan 路线</th></tr></thead>
+        <tbody>
+          <tr><td>多项式插值</td><td>2 次 NTT</td><td><strong>不需要</strong></td></tr>
+          <tr><td>约束检查</td><td>多项式恒等式 + 承诺打开</td><td>Sumcheck 的 n 轮</td></tr>
+          <tr><td>证明者内存</td><td>要存整张系数表</td><td>只需流式读取</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      但要注意：Sumcheck 换来了 <code>n</code> 轮交互（Fiat–Shamir 后是 <code>n</code> 次哈希）。
+      当 <code>n</code> 很小时，这个开销反而超过 NTT。<strong>交叉点大约在 <code>n = 2¹⁶</code> 附近。</strong>
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:140px">方案</th><th style="width:130px">算术化</th><th>核心技术</th><th style="width:120px">可信设置</th></tr></thead>
+        <tbody>
+          <tr><td>Groth16</td><td>R1CS → QAP</td><td>配对 + 专用设置</td><td>需要</td></tr>
+          <tr><td>PLONK</td><td>PLONKish</td><td>多项式承诺 + 置换</td><td>通用</td></tr>
+          <tr><td><strong>Spartan</strong></td><td>R1CS</td><td><strong>Sumcheck</strong> + 承诺</td><td>透明</td></tr>
+          <tr><td>Lasso</td><td>Lookup</td><td>Sumcheck + 稀疏多项式</td><td>透明</td></tr>
+          <tr><td>Binius</td><td>二进制域</td><td>Sumcheck + 小域</td><td>透明</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>GKR：给分层电路做 Sumcheck</h2>
+    <p>
+      GKR（Goldwasser–Kalai–Rothblum）针对的是<strong>分层电路</strong>：
+      每一层的每个门只连接上一层的两个门。大量 zkVM 的电路都是这个形状。
+    </p>
+    <p>
+      核心观察：每一层的输出，都可以写成「上一层取值的加权和」。
+      于是「这一层的某个门算对了」等价于「一个求和等式成立」——
+      正好可以用 Sumcheck 逐层验证。
+    </p>
+    <div class="fml" style="font-size:12.5px">
+      第 <em>i</em> 层：<em>V</em><sub><em>i</em></sub>(<em>z</em>) = Σ<sub><em>x</em>,<em>y</em></sub>
+      <em>add</em><sub><em>i</em></sub>(<em>z</em>,<em>x</em>,<em>y</em>)·(<em>V</em><sub><em>i</em>+1</sub>(<em>x</em>)+<em>V</em><sub><em>i</em>+1</sub>(<em>y</em>))
+      + <em>mul</em><sub><em>i</em></sub>(<em>z</em>,<em>x</em>,<em>y</em>)·<em>V</em><sub><em>i</em>+1</sub>(<em>x</em>)·<em>V</em><sub><em>i</em>+1</sub>(<em>y</em>)
+      <span class="lbl">add/mul 是布线选择子，决定第 z 个门是加法还是乘法</span>
+    </div>
+    <p>
+      逐层往下推，最后落到输入层，验证者直接检查输入即可。
+      总验证成本与<strong>电路深度</strong>成正比，与宽度几乎无关。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">GKR 的优势与局限</span>
+        <p>
+          <strong>优势</strong>：证明者不需要承诺整张表，只需要承诺每一层的少量值。
+          对「深而窄」的电路特别友好。<br>
+          <strong>局限</strong>：只适合分层结构。如果电路有大量跨层连接（比如稠密矩阵乘），
+          层数会爆炸，反而不如 R1CS。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>MPC-in-the-head：另一条完全不同的路</h2>
+    <p class="lead">
+      前面所有方案都依赖「多项式 + 承诺」。这一支不用 ——
+      它把<strong>多方安全计算（MPC）协议</strong>搬到证明者脑子里演一遍。
+    </p>
+    <p>思路分三步：</p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>把见证切成 N 份</h4>
+        <p>用秘密分享把 <code>w</code> 拆成 <code>w₁…w<sub>N</sub></code>，单独任何一份都不泄露信息。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>在「脑子里」跑一遍 MPC</h4>
+        <p>
+          模拟 N 个参与方，各自持有 <code>w<sub>i</sub></code>，共同计算 <code>R(x,w)</code>。
+          每个人只看到自己的份额和广播值。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>承诺所有视图，随机打开一部分</h4>
+        <p>
+          把 N 个参与方的完整视图都哈希承诺。验证者随机挑 <code>t</code> 个打开，
+          检查它们之间的一致性。
+        </p>
+      </div>
+    </div>
+    <p>
+      如果计算错误，至少有一个参与方的视图会暴露矛盾。
+      打开 <code>t</code> 个而没抓到的概率是 <code>(1−1/N)<sup>t</sup></code>，重复几轮就能压到可忽略。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">方案</th><th style="width:140px">底层假设</th><th>特点</th></tr></thead>
+        <tbody>
+          <tr><td>Picnic</td><td>对称密码（AES / SHA）</td><td>抗量子、证明大（几十 KB）、签名场景</td></tr>
+          <tr><td>Ligero</td><td>哈希 + 编码</td><td>透明、证明中等、验证较快</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">为什么它重要，但用得少</span>
+        <p>
+          它是少数<strong>不依赖任何数论假设</strong>的方案，抗量子。但证明体积大、
+          验证开销高，而且「把 MPC 协议写成电路」本身很麻烦。
+          目前主要用于数字签名（Picnic 是 NIST 后量子签名候选），而不是通用 ZKP。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>Sumcheck 把「2ⁿ 项求和」压成「n 轮、每轮常数次检查」。</li>
+        <li>每轮证明者发一个一元多项式，验证者回一个随机点，变量数减一。</li>
+        <li>安全性依赖<strong>次数界</strong>：低次多项式在随机点上无法伪装。</li>
+        <li>Spartan 用 Sumcheck 重做 R1CS，省掉 FFT 和可信设置。</li>
+        <li>GKR 是「分层电路版」的 Sumcheck；MPC-in-the-head 是完全不同的抗量子路线。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「Sumcheck 是一种 SNARK。」</span></div>
+      <div class="r"><i>✓</i><div>它只是<strong>一个交互式协议</strong>，本身不提供零知识和简洁性。
+        要变成 SNARK，必须再加承诺（把每轮的多项式锁住）和 Fiat–Shamir（去交互）。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「Sumcheck 比 QAP 更快，所以应该全面替代。」</span></div>
+      <div class="r"><i>✓</i><div>它省掉 FFT，但引入了 n 轮交互（Fiat–Shamir 后是 n 次哈希）。
+        对<strong>小电路</strong>，QAP 的常数更优；对<strong>大电路</strong>，Sumcheck 的优势才显现。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「GKR 能证明任意电路。」</span></div>
+      <div class="r"><i>✓</i><div>只适合<strong>分层、低扇入</strong>的电路。稠密连接会让层数和每层的求和规模爆炸，
+        这时不如老老实实用 R1CS。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「MPC-in-the-head 是理论玩具。」</span></div>
+      <div class="r"><i>✓</i><div>Picnic 已经进入 NIST 后量子签名候选名单。它的价值在于
+        <strong>只依赖对称密码</strong>，这在后量子时代是稀缺属性。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="02-09-recursion.html">
+      <span class="pl">← 上一模块 · 02 · 09</span>
+      <span class="pt">递归组合：让证明去验证另一个证明</span>
+    </a>
+    <a href="02-11-range-proofs.html">
+      <span class="pl">下一模块 · 02 · 11</span>
+      <span class="pt">范围证明：证明一个数在区间内而不说出它 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

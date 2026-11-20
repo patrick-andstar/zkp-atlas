@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>概率与抽样 · Schwartz–Zippel 引理 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">概率与抽样</div>
+  <div class="side-s">01 · Probability &amp; Sampling</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>为什么可以抽查</a>
+    <a href="#s2"><span>2</span>直觉：随机点</a>
+    <a href="#s3"><span>3</span>Schwartz–Zippel</a>
+    <a href="#s4"><span>4</span>证明思路</a>
+    <a href="#s5"><span>5</span>可靠性误差</a>
+    <a href="#s6"><span>6</span>多次抽样</a>
+    <a href="#s7"><span>7</span>数字示例</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="01-08-commitments.html">← 上一模块 · 承诺方案</a>
+    <a href="index.html">返回图谱首页</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>为什么可以抽查</a></li>
+      <li><a href="#s2"><span>2</span>直觉</a></li>
+      <li><a href="#s3"><span>3</span>Schwartz–Zippel</a></li>
+      <li><a href="#s4"><span>4</span>证明思路</a></li>
+      <li><a href="#s5"><span>5</span>可靠性误差</a></li>
+      <li><a href="#s6"><span>6</span>多次抽样</a></li>
+      <li><a href="#s7"><span>7</span>数字示例</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>01 数学基础</span><span>/</span><b>01 · 09</b></div>
+
+  <header>
+    <h1>概率与抽样：随机验一点，凭什么等于验了全部</h1>
+    <p class="tagline">
+      SNARK 的验证者只看一个随机点，就敢相信一个覆盖上亿条约束的等式成立。
+      这不是工程上的偷懒，而是一个可以严格证明的引理 ——
+      整个 ZKP 的可靠性，最后都落在这个概率界上。
+    </p>
+    <div class="meta">
+      <span class="hot">可靠性基石</span>
+      <span>≈ 12 min</span>
+      <span>难度 2 / 5</span>
+      <span>前置：多项式</span>
+      <span>被用于：QAP · FRI · 所有抽查</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这个模块要解决什么问题</h2>
+    <p class="lead">
+      验证者拿到了一个等式 <code>P(x) = h(x)·Z(x)</code>，其中 <code>P</code> 的次数是 10<sup>6</sup>。
+      他要在不读全部系数的情况下判断这个等式是否恒成立。
+    </p>
+    <p>有两种办法：</p>
+    <ul>
+      <li><strong>逐个系数比对</strong>：O(n)，等于把证明重新算一遍，毫无意义。</li>
+      <li><strong>随机取一个点 z，检查两边是否相等</strong>：O(1)，但可能漏检。</li>
+    </ul>
+    <p>
+      关键问题是：<strong>漏检的概率有多大？</strong> 如果这个概率可以被压到 <code>2<sup>−100</sup></code> 以下，
+      那它就比「硬盘静默损坏」更可靠。
+    </p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>直觉：一个多项式能「装」多少个零点</h2>
+    <p>
+      想象一条抛物线（2 次多项式）。它最多与 x 轴相交 2 次 —— 这是中学知识。
+      一条 100 次曲线最多交 100 次。
+    </p>
+    <div class="fml">
+      <em>d</em> 次非零多项式 &nbsp;⟹&nbsp; 最多 <em>d</em> 个根
+      <span class="lbl">这条「代数基本定理」的推论，就是全部安全性的来源</span>
+    </div>
+    <p>
+      现在把这条曲线放在一个有 <code>p ≈ 2<sup>254</sup></code> 个点的数轴上。
+      随机戳一个点，戳中根的概率最多是 <code>d / p</code>。
+    </p>
+    <p>
+      当 <code>d = 10<sup>6</sup></code>、<code>p = 2<sup>254</sup></code> 时，
+      这个概率约等于 <code>10<sup>6</sup> / 10<sup>76</sup> = 10<sup>−70</sup></code> ——
+      比连续中一百次彩票还难。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么不是「验证者要相信证明者」</span>
+        <p>
+          因为这里没有信任：<strong>证明者无法预测验证者会选哪个点</strong>。
+          如果等式不成立，那个「差值多项式」必然非零，而它只有有限个根。
+          证明者想让验证者踩中根，得猜中随机数 —— 概率就是上面那个数。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>Schwartz–Zippel 引理：正式版本</h2>
+    <p class="lead">
+      单变量版本很好懂。多变量版本才是 ZKP 里真正用到的形式。
+    </p>
+    <div class="fml" style="font-size:13px;text-align:left;line-height:2">
+      <strong>引理</strong>：设 <em>P</em>(<em>x</em><sub>1</sub>,…,<em>x</em><sub><em>n</em></sub>) 是一个<strong>非零</strong>多项式，
+      总次数为 <em>d</em>。<em>S</em> 是一个有限集合。<br>
+      若 <em>r</em><sub>1</sub>,…,<em>r</em><sub><em>n</em></sub> 独立均匀地取自 <em>S</em>，则
+    </div>
+    <div class="fml">
+      Pr[ <em>P</em>(<em>r</em><sub>1</sub>,…,<em>r</em><sub><em>n</em></sub>) = 0 ] &nbsp;≤&nbsp; <em>d</em> / |<em>S</em>|
+      <span class="lbl">这是最常用的形式；更精确的版本会带一个小的修正项</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:100px">符号</th><th>含义</th><th style="width:180px">在 ZKP 里是什么</th></tr></thead>
+        <tbody>
+          <tr><td><code>P</code></td><td>「差值多项式」。如果命题成立，它恒为零</td><td><code>(ΣwA)(ΣwB) − ΣwC − hZ</code></td></tr>
+          <tr><td><code>d</code></td><td>总次数</td><td>约等于电路规模 m</td></tr>
+          <tr><td><code>S</code></td><td>抽样范围</td><td>整个 <code>𝔽<sub>p</sub></code>，大小约 <code>2<sup>254</sup></code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      注意前提：<strong><code>P</code> 必须非零</strong>。如果证明者作弊导致 <code>P ≠ 0</code>，
+      那么它最多有 <code>d</code> 个根，随机点落在根上的概率就是 <code>d/|S|</code>。
+    </p>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>证明思路：对变量个数做归纳</h2>
+    <p>单变量情形就是「d 次多项式最多 d 个根」。多变量用归纳：</p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>把 P 看成最后一个变量的多项式</h4>
+        <p>
+          <code>P(x₁,…,xₙ) = Σ<sub>i</sub> c<sub>i</sub>(x₁,…,x<sub>n−1</sub>)·x<sub>n</sub><sup>i</sup></code>，
+          其中系数本身是前 n−1 个变量的多项式。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>先固定前 n−1 个变量</h4>
+        <p>
+          对随机取定的 <code>r₁…r<sub>n−1</sub></code>，<code>P</code> 变成关于 <code>x<sub>n</sub></code> 的单变量多项式，
+          次数不超过 d。它要么恒为零，要么最多 d 个根。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>再对最后一个变量抽样</h4>
+        <p>
+          「恒为零」这种情况只在前 n−1 个变量恰好落在某个低次曲面上时发生 ——
+          由归纳假设，这个概率不超过 <code>d/|S|</code>。
+          其余情况下，再抽 <code>x<sub>n</sub></code> 踩中根的概率也不超过 <code>d/|S|</code>。
+        </p>
+      </div>
+    </div>
+    <p>
+      两步合起来，总失败概率不超过 <code>2d/|S|</code>。经过更精细的分析可以去掉系数 2，
+      得到 <code>d/|S|</code>。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">为什么工程上从来不关心这个常数</span>
+        <p>
+          因为 <code>d/|S| ≈ 2<sup>−240</sup></code>，前面乘 2 还是乘 10 都无所谓。
+          <strong>安全裕度大到可以忽略常数因子</strong>，这是密码学里少见的舒服情况。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>可靠性误差：把「漏检」算成一个数</h2>
+    <p>
+      SNARK 的安全性通常表述为「可靠性误差 ≤ ε」。这个 ε 就是 Schwartz–Zippel 给出的概率。
+    </p>
+    <div class="fml">
+      ε &nbsp;=&nbsp; <em>d</em> / |𝔽<sub><em>p</em></sub>| &nbsp;=&nbsp; <em>d</em> / <em>p</em>
+      <span class="lbl">d 是约束条数，p 是域大小</span>
+    </div>
+    <h3>代入真实数字</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:160px">电路规模 d</th><th>域大小 p</th><th>可靠性误差 ε</th><th>等效安全位数</th></tr></thead>
+        <tbody>
+          <tr><td>2<sup>10</sup> ≈ 1 千</td><td>2<sup>254</sup></td><td>2<sup>−244</sup></td><td>244 位</td></tr>
+          <tr><td>2<sup>20</sup> ≈ 100 万</td><td>2<sup>254</sup></td><td>2<sup>−234</sup></td><td>234 位</td></tr>
+          <tr><td>2<sup>28</sup> ≈ 2.7 亿</td><td>2<sup>254</sup></td><td>2<sup>−226</sup></td><td>226 位</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      即使电路大到 <code>2<sup>28</sup></code>，安全裕度仍有 226 位 —— 远超 128 位的工程标准。
+      所以<strong>单点验证在数学上完全够用</strong>，不需要重复。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">但这个界只在「P 非零」时有用</span>
+        <p>
+          如果证明者能构造出 <code>P ≡ 0</code> 但命题为假的情况（比如电路约束写漏了），
+          Schwartz–Zippel 帮不了你 —— 它只管「等式是否恒成立」，不管「等式是否表达了你想表达的东西」。
+          <strong>这就是「算术化正确性」和「密码学可靠性」的分界线。</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>多次抽样：并集界</h2>
+    <p>
+      有些协议（比如 FRI）要抽多个点。失败概率怎么算？
+    </p>
+    <div class="fml">
+      Pr[ 至少一次踩中 ] &nbsp;≤&nbsp; Σ<sub><em>i</em></sub> Pr[ 第 <em>i</em> 次踩中 ] &nbsp;=&nbsp; <em>q</em> · <em>d</em> / <em>p</em>
+      <span class="lbl">并集界（union bound）：概率最多线性累加</span>
+    </div>
+    <p>
+      这里 <code>q</code> 是抽样次数。因为每次的概率都是 <code>d/p</code>，
+      总量最多是 <code>q·d/p</code>。
+    </p>
+    <h3>FRI 里的形式不一样</h3>
+    <p>
+      FRI 的失败概率是 <code>(1−δ)<sup>q</sup></code>，指数衰减而不是线性累加。
+      因为每一次查询都在「独立的层」上，且每层都有一定的「远离度」δ。
+    </p>
+    <div class="fml" style="font-size:13px">
+      FRI：Pr[ 漏检 ] ≤ ( 1 − δ )<sup><em>q</em></sup>
+      &nbsp;&nbsp;vs&nbsp;&nbsp;
+      QAP 单点：Pr[ 漏检 ] ≤ <em>d</em>/<em>p</em>
+      <span class="lbl">前者靠「多次独立抽查」，后者靠「域足够大」</span>
+    </div>
+    <p>
+      两种机制都是「把概率压到可忽略」，但路径不同：一个用重复，一个用大空间。
+    </p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>手算一个具体概率</h2>
+    <p>假设某个证明系统用了一个「小域」，<code>p = 65537</code>（约 <code>2<sup>16</sup></code>），电路有 1000 条约束。</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      ε = 1000 / 65537 ≈ 0.0153
+      <span class="lbl">约 1.5% —— 每验证 65 次就有一次可能被蒙混过关</span>
+    </div>
+    <p><strong>这完全不可接受。</strong> 所以真实系统绝不用小域。</p>
+    <p>换成 <code>p ≈ 2<sup>254</sup></code>：</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      ε = 1000 / 2<sup>254</sup> ≈ 2<sup>−244</sup>
+      <span class="lbl">约 10<sup>−73</sup> —— 可忽略</span>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">这就是为什么「域要足够大」不是可选项</span>
+        <p>
+          域太小，Schwartz–Zippel 的界就松到没有意义。所有实用 SNARK 的域都在 254 位以上，
+          不是为了「更安全」，而是<strong>为了让这个概率界成立</strong>。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>d 次非零多项式最多 d 个根 —— 这是所有抽查的理论基础。</li>
+        <li>Schwartz–Zippel：<code>Pr[P(r)=0] ≤ d/|S|</code>，对多变量也成立。</li>
+        <li>QAP 的可靠性误差就是 <code>d/p</code>，代入真实数字后是 <code>2<sup>−240</sup></code> 量级。</li>
+        <li>多次抽样用并集界：<code>q·d/p</code>；FRI 则是指数衰减 <code>(1−δ)<sup>q</sup></code>。</li>
+        <li>域太小会让这个界失效，所以实用系统都用 254 位以上的域。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「随机抽查是工程上的妥协，不严谨。」</span></div>
+      <div class="r"><i>✓</i><div>恰恰相反，它是<strong>可证明的</strong>。Schwartz–Zippel 是定理，不是启发式。
+        而且失败概率比大多数工程系统的物理故障率还低。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「多验几个点一定更安全。」</span></div>
+      <div class="r"><i>✓</i><div>当 <code>d/p</code> 已经是 <code>2<sup>−240</sup></code> 时，再乘 3 变成 <code>2<sup>−238</sup></code> ——
+        <strong>没有实际意义</strong>。真正的风险在电路写错、仪式泄露、实现漏洞，不在这个概率上。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「Schwartz–Zippel 能保证电路是对的。」</span></div>
+      <div class="r"><i>✓</i><div>它只保证「如果差值多项式非零，随机点大概率能发现」。
+        如果电路本身少了一条约束，差值多项式可能<strong>恒为零</strong>，此时任何抽样都发现不了。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「随机数可以用伪随机生成器代替，效果一样。」</span></div>
+      <div class="r"><i>✓</i><div>可以，但前提是<strong>种子对证明者不可预测</strong>。如果证明者能预测验证者的随机点，
+        他就可以专门构造一个在该点为零、但并非恒零的多项式 —— 整个论证失效。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="01-08-commitments.html">
+      <span class="pl">← 上一模块 · 01 · 08</span>
+      <span class="pt">承诺方案：先锁住、后打开</span>
+    </a>
+    <a href="index.html">
+      <span class="pl">返回</span>
+      <span class="pt">图谱首页 · 01 类已完成</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

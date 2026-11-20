@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>递归与聚合 · 工程实现 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">递归与聚合</div>
+  <div class="side-s">03 · Recursion &amp; Aggregation</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>工程动机</a>
+    <a href="#s2"><span>2</span>三条实现路径</a>
+    <a href="#s3"><span>3</span>递归的电路成本</a>
+    <a href="#s4"><span>4</span>聚合怎么做</a>
+    <a href="#s5"><span>5</span>分层架构</a>
+    <a href="#s6"><span>6</span>真实系统怎么用</a>
+    <a href="#s7"><span>7</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="03-03-trusted-setup.html">← 上一模块 · 可信设置仪式</a>
+    <a href="03-05-hardware.html">下一模块 · 硬件加速 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>工程动机</a></li>
+      <li><a href="#s2"><span>2</span>三条路径</a></li>
+      <li><a href="#s3"><span>3</span>递归的电路成本</a></li>
+      <li><a href="#s4"><span>4</span>聚合怎么做</a></li>
+      <li><a href="#s5"><span>5</span>分层架构</a></li>
+      <li><a href="#s6"><span>6</span>真实系统</a></li>
+      <li><a href="#s7"><span>7</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>03 工程实现</span><span>/</span><b>03 · 04</b></div>
+
+  <header>
+    <h1>递归与聚合：把一千个证明压成一个</h1>
+    <p class="tagline">
+      理论上「证明可以验证证明」很优雅。工程上，你要在一个电路里重新实现整套配对运算、
+      处理两条曲线之间的域不匹配、还要让性能可以接受。这一页讲的是这些脏活。
+    </p>
+    <div class="meta">
+      <span>≈ 15 min</span>
+      <span>难度 5 / 5</span>
+      <span>前置：递归组合 · 证明系统</span>
+      <span>产出：可上链的聚合证明</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>为什么工程上非做不可</h2>
+    <p class="lead">
+      一个 Rollup 每秒产生几十个批次，每个批次一个证明。如果每个都上链验证，
+      gas 成本会直接吃掉利润。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px">方案</th><th style="width:150px">链上验证次数</th><th>成本</th></tr></thead>
+        <tbody>
+          <tr><td>每批一个证明</td><td>每小时 3600 次</td><td>~ 10 亿 gas / 小时</td></tr>
+          <tr><td>聚合成一个</td><td>每小时 1 次</td><td>~ 30 万 gas / 小时</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      差三个数量级。这就是为什么所有生产级 Rollup 都在做聚合 ——
+      不是为了优雅，是为了成本。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">两种压缩，目标不同</span>
+        <p>
+          <strong>递归</strong>解决「时间维度」：把无限长的历史压成一个证明。<br>
+          <strong>聚合</strong>解决「空间维度」：把同一时刻的一批证明压成一个。<br>
+          实际系统通常两个都用。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>三条实现路径，成本差很多</h2>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th style="width:130px">路径</th><th>做法</th><th style="width:150px">额外开销</th><th style="width:140px">代表</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>电路内验证</strong></td>
+            <td>把验证算法写成约束，证明「前一个证明有效」</td>
+            <td>几万条约束 / 次</td>
+            <td>Halo2 递归、Groth16 递归</td>
+          </tr>
+          <tr>
+            <td><strong>配对聚合</strong></td>
+            <td>利用配对的线性，把 n 个验证等式合并成一个</td>
+            <td>几乎为零</td>
+            <td>SnarkPack、Groth16 聚合</td>
+          </tr>
+          <tr>
+            <td><strong>折叠 + 一次证明</strong></td>
+            <td>先折叠累积，最后生成一个 SNARK</td>
+            <td>微秒级 / 步</td>
+            <td>Nova、ProtoGalaxy</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      注意第二条的特殊性：<strong>配对聚合不产生新证明</strong>，它只是把多个验证等式
+      「线性组合」成一个。所以它极快，但只能聚合同一种电路、同一个验证密钥的证明。
+    </p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>递归的电路成本：贵在哪</h2>
+    <p>要在电路里验证一个 Groth16 证明，需要实现：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:180px">组件</th><th style="width:150px">约束数量级</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>椭圆曲线点加</td><td>~ 10 条 / 次</td><td>非原生域运算，需要模拟</td></tr>
+          <tr><td>标量乘</td><td>~ 3000 条 / 次</td><td>验证里要做几次</td></tr>
+          <tr><td>Miller 循环</td><td>~ 10000 条</td><td>配对的核心，最贵</td></tr>
+          <tr><td>最终幂</td><td>~ 3000 条</td><td>提升到 GT 子群</td></tr>
+          <tr><td>哈希（vk 摘要）</td><td>~ 200 条（Poseidon）</td><td>相对便宜</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      合计：<strong>一次 Groth16 验证约 2–4 万条约束</strong>。
+      如果电路本身只有 1 万条约束，那递归会让规模直接翻三倍。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这就是「递归不划算」的临界点</span>
+        <p>
+          如果每步计算很小（比如简单的状态更新），递归验证的开销会占绝对主导，
+          整体效率极低。这种情况下<strong>折叠方案明显更优</strong> ——
+          它把「每步验证」换成「每步折叠」，成本从几万约束降到几十次域运算。
+        </p>
+      </div>
+    </div>
+    <h3>降低成本的三种手段</h3>
+    <ul>
+      <li><strong>换曲线</strong>：用 Pasta（Pallas/Vesta）做循环曲线，省掉非原生域模拟。</li>
+      <li><strong>换证明系统</strong>：FRI-based 的电路内验证只需要哈希，约几千条约束。</li>
+      <li><strong>减少配对</strong>：把多个验证合并成一次（batch verification）。</li>
+    </ul>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>聚合：利用配对的线性</h2>
+    <p class="lead">
+      Groth16 的验证是 <code>e(A,B) = e(α,β)·e(Σxγ,δ)·e(C,δ)</code>。
+      配对在指数上是双线性的，所以多个这样的等式可以「乘起来」合并。
+    </p>
+    <p>给定 n 个证明，取随机系数 <code>r₁…rₙ</code>，构造：</p>
+    <div class="fml" style="font-size:13px">
+      Π<sub><em>i</em></sub> <em>e</em>( <em>A</em><sub><em>i</em></sub> , <em>B</em><sub><em>i</em></sub> )<sup><em>r</em><sub><em>i</em></sub></sup>
+      <span class="op">=</span>
+      Π<sub><em>i</em></sub> ( 右边<sub><em>i</em></sub> )<sup><em>r</em><sub><em>i</em></sub></sup>
+      <span class="lbl">如果每个等式都成立，合并后的等式必然成立；反之大概率不成立</span>
+    </div>
+    <p>
+      合并后只需要计算<strong>一个</strong>「多配对」表达式 —— 而多配对的成本几乎等于一次配对
+      （因为可以共用 Miller 循环）。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">n 个证明</th><th>逐个验证</th><th>聚合验证</th><th>节省</th></tr></thead>
+        <tbody>
+          <tr><td>10</td><td>10 次配对 ≈ 10 ms</td><td>1 次多配对 ≈ 1.2 ms</td><td>8×</td></tr>
+          <tr><td>100</td><td>100 ms</td><td>~ 1.5 ms</td><td>60×</td></tr>
+          <tr><td>1000</td><td>1 s</td><td>~ 2 ms</td><td>500×</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">但聚合证明本身还要「证明聚合正确」</span>
+        <p>
+          上面的式子只证明了「这 n 个证明都有效」，没有证明「这 n 个证明对应的是这 n 笔交易」。
+          所以还需要一层电路，把「交易列表 → 证明列表」的映射约束住。
+          <strong>聚合不是免费的，它把复杂度从验证转移到了电路设计。</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>分层架构：真实 Rollup 怎么搭</h2>
+    <div class="fml" style="text-align:left;font-size:12.5px;line-height:2.3">
+      <span style="color:#8A6A22">L1 合约</span> &nbsp;←&nbsp; 只验证一个 Groth16 证明（~30 万 gas）<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;↑<br>
+      <span style="color:#12384F">聚合层</span> &nbsp;←&nbsp; 把 K 个批次证明聚合成一个（递归或聚合）<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;↑<br>
+      <span style="color:#A6432B">批次层</span> &nbsp;←&nbsp; 每批 N 笔交易生成一个 STARK / PLONK 证明
+    </div>
+    <p>这个三层结构解决了一个核心矛盾：</p>
+    <ul>
+      <li><strong>批次层</strong>要快、要能表达复杂逻辑 → 用 FRI-based 或 PLONKish。</li>
+      <li><strong>聚合层</strong>要小、要便宜 → 用 Groth16 包装。</li>
+      <li><strong>L1</strong> 只认便宜的那个。</li>
+    </ul>
+    <p>
+      这就是常见的「<strong>STARK 生成 + Groth16 包装</strong>」组合。
+      它不是「哪个更好」的选择，而是<strong>让每一层用最适合它的工具</strong>。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">一个具体的分工</span>
+        <p>
+          zkSync Era 用 Boojum（FRI-based）做批次证明，再把结果递归进一个更小的证明上链。
+          Polygon zkEVM 用 PLONKish 做批次，用递归聚合压缩。<strong>路径不同，结构相同。</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>真实系统的取舍</h2>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">系统</th><th style="width:150px">批次证明</th><th>聚合方式</th><th style="width:130px">上链成本</th></tr></thead>
+        <tbody>
+          <tr><td><strong>zkSync Era</strong></td><td>Boojum（FRI）</td><td>递归压缩 + 最终 SNARK</td><td>低</td></tr>
+          <tr><td><strong>Scroll</strong></td><td>Halo2（KZG）</td><td>递归聚合</td><td>中</td></tr>
+          <tr><td><strong>Polygon zkEVM</strong></td><td>PLONK</td><td>递归 + 聚合</td><td>中</td></tr>
+          <tr><td><strong>StarkNet</strong></td><td>STARK</td><td>由 SHARP 共享聚合</td><td>低（分摊）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      注意 StarkNet 的 SHARP：它把<strong>多个不同应用</strong>的证明聚合成一个。
+      这是聚合的极致形态 —— 不是「同一电路的多个证明」，而是「异构证明的批处理」。
+    </p>
+    <h3>性能的真实数字</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px">环节</th><th>耗时</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>批次证明生成</td><td>几十秒 – 几分钟</td><td>取决于交易数</td></tr>
+          <tr><td>递归聚合（每层）</td><td>几秒 – 几十秒</td><td>电路内验证的开销</td></tr>
+          <tr><td>最终上链验证</td><td>~ 3 ms / 30 万 gas</td><td>Groth16</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      所以「证明生成」是链下的事，可以慢慢算；「验证」是链上的事，必须极快。
+      <strong>整个架构的设计目标，就是把计算尽量推到链下，只把验证留在链上。</strong>
+    </p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>递归压时间维度，聚合压空间维度，生产系统两者都用。</li>
+        <li>电路内验证一个 Groth16 证明约 2–4 万条约束，是递归的主要成本。</li>
+        <li>配对聚合几乎免费，但只能聚合同电路、同 vk 的证明。</li>
+        <li>典型架构：STARK 做批次 + Groth16 包装上链。</li>
+        <li>链下慢慢算，链上只验证 —— 这是所有 Rollup 的共同结构。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「递归一定比聚合好。」</span></div>
+      <div class="r"><i>✓</i><div>递归能处理异构计算（不同电路），聚合只能处理同构证明。
+        但如果你的场景就是「同一电路的 1000 个证明」，<strong>聚合快几个数量级</strong>。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「聚合之后 gas 就固定了，跟交易数无关。」</span></div>
+      <div class="r"><i>✓</i><div>上链验证的 gas 确实固定，但<strong>聚合本身的成本随 n 增长</strong>（虽然很慢）。
+        而且聚合电路要处理 n 条数据的哈希，这部分是 O(n) 的。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「用递归就能无限压缩。」</span></div>
+      <div class="r"><i>✓</i><div>每层递归都有固定开销（验证电路的约束数）。层数越多，累积开销越大。
+        实际系统通常只有 2–3 层，不会无限套。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「聚合证明可以跨项目复用。」</span></div>
+      <div class="r"><i>✓</i><div>证明绑定特定的<strong>验证密钥</strong>。换了电路、换了 vk，旧证明立刻失效。
+        跨项目复用需要重新生成，不存在「通用聚合证明」。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="03-03-trusted-setup.html">
+      <span class="pl">← 上一模块 · 03 · 03</span>
+      <span class="pt">可信设置仪式：那场必须销毁秘密的仪式</span>
+    </a>
+    <a href="03-05-hardware.html">
+      <span class="pl">下一模块 · 03 · 05</span>
+      <span class="pt">硬件加速：MSM 和 NTT 是全部瓶颈 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

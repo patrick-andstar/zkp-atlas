@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>根与单位根 · ωⁿ = 1 到底是什么 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">根与单位根</div>
+  <div class="side-s">00 · Roots of Unity</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>「根」这个词有三种用法</a>
+    <a href="#s2"><span>2</span>根就是方程的解</a>
+    <a href="#s3"><span>3</span>根与因式分解</a>
+    <a href="#s4"><span>4</span>单位根：xⁿ = 1</a>
+    <a href="#s5"><span>5</span>复数单位根长在圆上</a>
+    <a href="#s6"><span>6</span>有限域里没有圆，但有同样的东西</a>
+    <a href="#s7"><span>7</span>为什么偏偏要 2 的幂</a>
+    <a href="#s8"><span>8</span>FFT 到底靠单位根省了什么</a>
+    <a href="#s9"><span>9</span>手算：𝔽₁₇ 的四次单位根</a>
+    <a href="#s10"><span>10</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="00-03-rings-fields.html">← 上一模块 · 环与域</a>
+    <a href="00-05-notation.html">下一模块 · 符号黑话 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>「根」的三种用法</a></li>
+      <li><a href="#s2"><span>2</span>根就是方程的解</a></li>
+      <li><a href="#s3"><span>3</span>根与因式分解</a></li>
+      <li><a href="#s4"><span>4</span>单位根</a></li>
+      <li><a href="#s5"><span>5</span>复数单位根与圆</a></li>
+      <li><a href="#s6"><span>6</span>有限域里的单位根</a></li>
+      <li><a href="#s7"><span>7</span>为什么要 2 的幂</a></li>
+      <li><a href="#s8"><span>8</span>FFT 省了什么</a></li>
+      <li><a href="#s9"><span>9</span>手算 𝔽₁₇</a></li>
+      <li><a href="#s10"><span>10</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>00 零基础前置</span><span>/</span><b>00 · 04</b></div>
+
+  <header>
+    <h1>根：从「方程的解」到「FFT 的燃料」</h1>
+    <p class="tagline">
+      你在论文里看到的「根」有三种完全不同的意思，混在一起会彻底读不下去。
+      这一页先分清它们，然后重点讲第三种 —— <strong>单位根</strong>，
+      那个让 FFT 快一万倍、让多项式承诺能落地的 <code>ω</code>。
+    </p>
+    <div class="meta">
+      <span class="hot">概念枢纽</span>
+      <span>≈ 16 min</span>
+      <span>难度 2.5 / 5</span>
+      <span>前置：00 · 03</span>
+      <span>被用于：多项式与 FFT · KZG · FRI · STARK</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>先说清楚：「根」这个词有三种用法</h2>
+    <p class="lead">
+      中文把三个英文词都翻成了「根」，这是翻译的锅。读的时候必须看上下文。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px">英文</th><th style="width:120px">中文</th><th>意思</th><th style="width:180px">例子</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>root</strong> (of a polynomial)</td>
+            <td>根 / 零点</td>
+            <td>让 <code>f(x) = 0</code> 成立的 x</td>
+            <td><code>x²−4</code> 的根是 2 和 −2</td>
+          </tr>
+          <tr>
+            <td><strong>root of unity</strong></td>
+            <td>单位根</td>
+            <td>让 <code>xⁿ = 1</code> 成立的 x</td>
+            <td><code>x⁴=1</code> 的根是 1, −1, i, −i</td>
+          </tr>
+          <tr>
+            <td><strong>square root / radical</strong></td>
+            <td>平方根 / 根号</td>
+            <td>开方的结果</td>
+            <td><code>√9 = 3</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      ZKP 里出现频率最高的是<strong>第一种和第二种</strong>，而且第二种是第一种的特例。
+      第三种（开方）只在讲「二次剩余」时出现，可以先不管。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">还有一个「根」不是这个根</span>
+        <p>
+          Merkle 树的<strong>根哈希</strong>（root hash）里的 root 是「树根」，是数据结构概念，和数学无关。
+          论文里「Merkle root」和「root of unity」同时出现时别搞混。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>根 = 方程的解：最朴素的定义</h2>
+    <p>
+      给定一个多项式 <code>f(x)</code>，「求根」就是解方程 <code>f(x) = 0</code>。
+    </p>
+    <div class="fml">
+      <em>f</em>(<em>r</em>) = 0 &nbsp;&nbsp;⟺&nbsp;&nbsp; <em>r</em> 是 <em>f</em> 的一个根
+      <span class="lbl">把 r 代进去，算出来是 0</span>
+    </div>
+    <p>几个你早就知道的例子：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:200px">多项式</th><th style="width:150px">次数</th><th>根</th></tr></thead>
+        <tbody>
+          <tr><td><code>x − 3</code></td><td>1</td><td>3</td></tr>
+          <tr><td><code>x² − 4</code></td><td>2</td><td>2, −2</td></tr>
+          <tr><td><code>x² + 1</code>（在 ℝ 上）</td><td>2</td><td><strong>没有</strong></td></tr>
+          <tr><td><code>x² + 1</code>（在 ℂ 上）</td><td>2</td><td>i, −i</td></tr>
+          <tr><td><code>x² − 4</code>（在 𝔽<sub>7</sub> 上）</td><td>2</td><td>2, 5（因为 5²=25≡4）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      看最后两行 —— <strong>同一个多项式，在不同的域里根的个数不一样，甚至可能没有</strong>。
+      这是「根」在密码学里最反直觉的地方：讨论根之前，必须先说清在哪个域里找。
+    </p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>根与因式分解：为什么「根」这么有用</h2>
+    <p class="lead">
+      根之所以重要，不是因为「解出那个数」，而是因为它和<strong>整除</strong>是等价的两件事。
+    </p>
+    <div class="fml">
+      <em>r</em> 是 <em>f</em> 的根 &nbsp;&nbsp;⟺&nbsp;&nbsp; ( <em>x</em> − <em>r</em> ) 整除 <em>f</em>(<em>x</em>)
+      <span class="lbl">叫「因式定理」，整个 ZKP 的构造逻辑都建立在它上面</span>
+    </div>
+    <p>
+      举个例子。取 <code>f(x) = x² − 5x + 6</code>，代 <code>x = 2</code>：<code>4 − 10 + 6 = 0</code>。
+      因为 2 是根，所以 <code>(x−2)</code> 一定整除它：
+    </p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      x² − 5x + 6 = ( x − 2 )( x − 3 )
+      <span class="lbl" style="text-align:left">除完商是 x−3，余数为 0</span>
+    </div>
+    <p>反过来，除法有<strong>余数</strong>时，余数就携带了「这个点上的值」：</p>
+    <div class="fml">
+      用 ( <em>x</em> − <em>r</em> ) 除 <em>f</em> ，余数恒等于 <em>f</em>(<em>r</em>)
+      <span class="lbl">叫「余数定理」。余数为 0，恰好说明 r 是根</span>
+    </div>
+
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">这就是 KZG 的全部秘密（现在看不懂没关系）</span>
+        <p>
+          想证明「我知道一个多项式 f，它在点 a 上的值是 v」，
+          验证者要你交出 <code>q(x) = (f(x) − v) / (x − a)</code>。<br>
+          如果 <code>v</code> 真的等于 <code>f(a)</code>，那 <code>a</code> 是 <code>f(x)−v</code> 的根，
+          除法<strong>整除</strong>，余数为 0，商 <code>q</code> 是个合法的多项式。<br>
+          如果 <code>v ≠ f(a)</code>，除法有余数，<code>q</code> 就不是多项式 —— 交不出来。<br>
+          <strong>「知道这个点的值」被转化成了「能证明整除」。</strong>（02 · 02 展开）
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>单位根：让 xⁿ = 1 成立的那些 x</h2>
+    <p class="lead">
+      <strong>单位根</strong>是「根」的一个特例：不找任意多项式的根，只找 <code>xⁿ = 1</code> 的根。
+    </p>
+    <div class="fml">
+      <em>ω</em><sup><em>n</em></sup> = 1
+      <span class="lbl">ω 读作 omega。满足这个式子的 ω 叫「n 次单位根」</span>
+    </div>
+    <p>
+      为什么叫「单位」？因为右边是 <strong>1</strong>，也就是乘法的单位元。用 00 · 02 的话说：
+      <code>ω</code> 的阶整除 <code>n</code>。
+    </p>
+    <p>先在最熟的实数里试：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:140px">方程</th><th style="width:200px">实数里的根</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>x¹ = 1</code></td><td>1</td><td>只有一个</td></tr>
+          <tr><td><code>x² = 1</code></td><td>1, −1</td><td>两个</td></tr>
+          <tr><td><code>x³ = 1</code></td><td><strong>只有 1</strong></td><td>−1 的立方是 −1，不是 1</td></tr>
+          <tr><td><code>x⁴ = 1</code></td><td>1, −1</td><td>2 和 −2 立方是 8 和 −8</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      实数里最多只有两个。但「n 次多项式最多 n 个根」这条定理说<strong>最多</strong> n 个 ——
+      那剩下的去哪了？跑到复数里去了。
+    </p>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>复数单位根长在单位圆上</h2>
+    <p class="lead">
+      在 ℂ 里，<code>xⁿ = 1</code> 恰好有 <strong>n 个根</strong>，而且它们均匀分布在一个圆上。
+    </p>
+    <p>
+      原因很漂亮：复数可以写成极坐标 <code>r·(cos θ + i sin θ)</code>。
+      乘法的效果是「模长相乘、角度相加」。要 <code>ωⁿ = 1</code>，就是要求：
+    </p>
+    <div class="fml">
+      模长：<em>r</em><sup><em>n</em></sup> = 1 &nbsp;⟹&nbsp; <em>r</em> = 1 &nbsp;&nbsp;<span class="op">（必须在单位圆上）</span><br>
+      角度：<em>n</em>·<em>θ</em> = 360° 的整数倍 &nbsp;⟹&nbsp; <em>θ</em> = <em>k</em>·360°/<em>n</em>
+      <span class="lbl">n 个等分点，转 n 次正好回到起点</span>
+    </div>
+
+    <div style="margin:26px 0 30px;padding:24px 20px;background:#fff;border:1px solid var(--rule);overflow-x:auto">
+      <svg viewBox="0 0 660 300" style="width:100%;min-width:540px;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="ax" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#B0B8C0"/>
+          </marker>
+        </defs>
+        <g transform="translate(200,150)">
+          <!-- 坐标轴 -->
+          <line x1="-130" y1="0" x2="130" y2="0" stroke="#E2DCD0" marker-end="url(#ax)"/>
+          <line x1="0" y1="120" x2="0" y2="-120" stroke="#E2DCD0" marker-end="url(#ax)"/>
+          <text x="134" y="20" font-family="monospace" font-size="9" fill="#B0B8C0">Re</text>
+          <text x="-8" y="-118" font-family="monospace" font-size="9" fill="#B0B8C0" text-anchor="end">Im</text>
+          <!-- 单位圆 -->
+          <circle cx="0" cy="0" r="96" fill="none" stroke="#12384F" stroke-width="1.2"/>
+          <!-- 8 次单位根：角度 -k*45 -->
+          <g>
+            <!-- k=0: (96,0) -->
+            <circle cx="96" cy="0" r="6" fill="#A6432B"/>
+            <text x="112" y="-11" font-family="monospace" font-size="10" fill="#A6432B">ω⁰=1</text>
+            <!-- k=1: 45deg -> (67.9,-67.9) -->
+            <circle cx="67.9" cy="-67.9" r="6" fill="#12384F"/>
+            <text x="76" y="-72" font-family="monospace" font-size="10" fill="#12384F">ω¹</text>
+            <!-- k=2: (0,-96) -->
+            <circle cx="0" cy="-96" r="6" fill="#12384F"/>
+            <text x="0" y="-106" font-family="monospace" font-size="10" fill="#12384F" text-anchor="middle">ω²=i</text>
+            <!-- k=3: (-67.9,-67.9) -->
+            <circle cx="-67.9" cy="-67.9" r="6" fill="#12384F"/>
+            <text x="-76" y="-72" font-family="monospace" font-size="10" fill="#12384F" text-anchor="end">ω³</text>
+            <!-- k=4: (-96,0) -->
+            <circle cx="-96" cy="0" r="6" fill="#55703F"/>
+            <text x="-108" y="4" font-family="monospace" font-size="10" fill="#55703F" text-anchor="end">ω⁴=−1</text>
+            <!-- k=5 -->
+            <circle cx="-67.9" cy="67.9" r="6" fill="#12384F"/>
+            <text x="-76" y="76" font-family="monospace" font-size="10" fill="#12384F" text-anchor="end">ω⁵</text>
+            <!-- k=6 -->
+            <circle cx="0" cy="96" r="6" fill="#12384F"/>
+            <text x="0" y="112" font-family="monospace" font-size="10" fill="#12384F" text-anchor="middle">ω⁶=−i</text>
+            <!-- k=7 -->
+            <circle cx="67.9" cy="67.9" r="6" fill="#12384F"/>
+            <text x="76" y="76" font-family="monospace" font-size="10" fill="#12384F">ω⁷</text>
+          </g>
+          <!-- 弧线标注 45 度 -->
+          <path d="M40,0 A40,40 0 0,0 28.3,-28.3" fill="none" stroke="#A6432B" stroke-width="1"/>
+          <text x="45" y="-7" font-family="monospace" font-size="9" fill="#A6432B">45°</text>
+        </g>
+        <g font-family="sans-serif" font-size="11.5" fill="#4A5764">
+          <text x="378" y="60">n = 8 时，单位根把圆八等分。</text>
+          <text x="378" y="86"><tspan font-family="monospace" fill="#A6432B">ω = e^(2πi/8) = cos45° + i·sin45°</tspan></text>
+          <text x="378" y="118">每乘一次 ω，就逆时针转 45°。</text>
+          <text x="378" y="144">转 8 次正好一圈，回到 1。</text>
+          <text x="378" y="180" font-weight="700" fill="#12384F">两条关键性质：</text>
+          <text x="378" y="204">ωⁿ = 1 &nbsp;（转满一圈）</text>
+          <text x="378" y="226">ω<sup>n/2</sup> = −1 &nbsp;（半圈，正好相反）</text>
+          <text x="378" y="262" font-size="10.5" fill="#7C8894">后者是 FFT 能分治的根本原因：</text>
+          <text x="378" y="278" font-size="10.5" fill="#7C8894">一半的点是另一半的相反数。</text>
+        </g>
+      </svg>
+    </div>
+
+    <p>
+      图里第二行那个 <code>ω<sup>n/2</sup> = −1</code> 值得单独记住（<strong>前提是 n 为偶数</strong>，奇数 n 时 n/2 不是整数）。
+      <strong>圆上「转半圈」就是乘以 −1</strong>，所以后半圈的点永远是前半圈取负。
+      这个小事实撑起了整个 FFT —— 后面第 8 节会用到。而 FFT 的 n 一定是 2 的幂，全是偶数，所以永远用得上。
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">「本原单位根」是什么</span>
+        <p>
+          有些 <code>ω</code> 只能转出圆上的一部分点。比如 4 次单位根 <code>i</code>，
+          它的幂是 <code>i, −1, −i, 1</code> —— 四个点全走到了，它是<strong>本原</strong>的。<br>
+          但 <code>−1</code> 虽然也是 4 次单位根（<code>(−1)⁴=1</code>），幂只有 <code>−1, 1</code> 两个点，不是本原的。<br>
+          <strong>本原 = 阶正好是 n = 生成元</strong>。和 00 · 02 的生成元是同一个概念。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>有限域里没有圆，但有同样的东西</h2>
+    <p class="lead">
+      这是最容易卡住的一步：<strong>𝔽<sub>p</sub> 里没有「角度」，没有「圆」，单位根长什么样？</strong>
+    </p>
+    <p>
+      答案：<strong>不需要长什么样。</strong> 单位根的<strong>全部用途</strong>只有一个 ——
+      它是 <code>xⁿ = 1</code> 的根，也就是「乘 n 次回到 1」的元素。
+      这个纯代数性质，在 𝔽<sub>p</sub> 里完全可以复现。
+    </p>
+    <p>
+      做法很直接：因为 <code>𝔽<sub>p</sub>*</code> 是循环群（00 · 02），
+      取一个生成元 <code>g</code>，群阶是 <code>p−1</code>。那么：
+    </p>
+    <div class="fml">
+      <em>ω</em> = <em>g</em><sup>(<em>p</em>−1)/<em>n</em></sup> &nbsp;&nbsp;⟹&nbsp;&nbsp;
+      <em>ω</em><sup><em>n</em></sup> = <em>g</em><sup><em>p</em>−1</sup> = 1
+      <span class="lbl">只要 n 整除 p−1，就一定有 n 次单位根</span>
+    </div>
+    <p>
+      <strong>「只要 n 整除 p−1」</strong> —— 这句话是全部工程约束的来源，下一节展开。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px">性质</th><th style="width:260px">在 ℂ 里</th><th>在 𝔽<sub>p</sub> 里</th></tr></thead>
+        <tbody>
+          <tr><td><code>ωⁿ = 1</code></td><td>✓</td><td>✓ 一样</td></tr>
+          <tr><td><code>ω<sup>n/2</sup> = −1</code></td><td>✓</td><td>✓ 一样（n 为偶数时）</td></tr>
+          <tr><td>n 个根均匀分布</td><td>在圆上，看得见</td><td><strong>散落在 0…p−1 里，看不出规律</strong></td></tr>
+          <tr><td>能画出来</td><td>能</td><td><strong>不能</strong>（只能画成散点）</td></tr>
+          <tr><td>代数运算</td><td>浮点，有误差</td><td><strong>整数，精确</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      所以论文里的 <code>ω</code>，你在纸上算的时候可以把它当成「复平面上那个转 1/n 圈的点」来理解 ——
+      <strong>所有代数恒等式完全一样</strong>。只有在真正落数值的时候，才换成 𝔽<sub>p</sub> 里的整数。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">一句话</span>
+        <p>
+          <strong>𝔽<sub>p</sub> 里的单位根，就是「伪装的复数单位根」。</strong>
+          它没有几何形状，但有全部代数功能。FFT 的每一行代码都不关心 ω 长什么样，只关心 <code>ω<sup>k</sup></code> 怎么算。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>为什么偏偏要 2 的幂：2-adicity</h2>
+    <p class="lead">
+      现在能回答 01 · 01 里那个悬着的问题了：<strong>为什么电路规模总是 2²⁰ 这种数？</strong>
+    </p>
+    <p>
+      因为 FFT 是<strong>分治</strong>算法：每一层把问题对半砍，砍 <code>log₂n</code> 层就到底。
+      要对半砍，就需要「一半是另一半的相反数」这个性质，也就需要 <code>ω<sup>n/2</sup> = −1</code>，
+      也就需要 <strong>n 是 2 的幂</strong>。
+    </p>
+    <p>而你能不能拿到 <code>2<sup>s</sup></code> 次单位根，取决于 <code>p−1</code> 里有几个 2：</p>
+    <div class="fml">
+      <em>p</em> − 1 = 2<sup><em>s</em></sup> · <em>t</em> &nbsp;&nbsp;（<em>t</em> 为奇数）
+      <span class="lbl">这个 s 就叫域（或曲线标量域）的 2-adicity。它决定了最大 FFT 长度 2<sup>s</sup></span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:190px">域 / 曲线</th><th style="width:130px">2-adicity</th><th>能支持的最大 FFT</th></tr></thead>
+        <tbody>
+          <tr><td>BN254 标量域</td><td>28</td><td><code>2²⁸</code> ≈ 2.68 亿</td></tr>
+          <tr><td>BLS12-381 标量域</td><td>32</td><td><code>2³²</code> ≈ 42.9 亿</td></tr>
+          <tr><td>Goldilocks (2⁶⁴−2³²+1)</td><td>32</td><td><code>2³²</code>，且是 64 位机器最友好的域</td></tr>
+          <tr><td>某个随机大素数</td><td>可能只有 1</td><td><code>2¹</code> = 2 —— <strong>基本没法用</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这就是「选域不是随便挑个大素数」的真正原因</span>
+        <p>
+          一个随机生成的 254 位素数，<code>p−1</code> 能被 4 整除的概率是 1/2，能被 8 整除是 1/4……
+          平均下来 2-adicity 只有 2 左右。<br>
+          ZKP 用的素数都是<strong>专门构造</strong>的：先定好要 s = 28，再反解出素数。
+          这叫「FFT-friendly prime」。选错了，你的电路永远卡在 4 个门。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>FFT 到底靠单位根省了什么</h2>
+    <p class="lead">
+      这一节是全页最硬的部分，但只看一个对比就够了。
+    </p>
+    <p>
+      <strong>问题</strong>：给一个 n−1 次多项式 <code>f</code>，求它在 n 个点上的值。
+    </p>
+    <h3>笨办法：逐点代入</h3>
+    <p>
+      每个点要算 n 次乘加，n 个点就是 <code>n²</code> 次运算。
+      <code>n = 2²⁰</code>（约一百万）时，<code>n²</code> 是<strong>一万亿</strong>次。跑不动。
+    </p>
+
+    <h3>聪明办法：选特定的点，让计算能对半砍</h3>
+    <p>
+      把求值点选成 <code>1, ω, ω², …, ω<sup>n−1</sup></code>。这时会发生一件事：
+    </p>
+    <div class="fml">
+      <em>f</em>(<em>x</em>) = <em>f</em><sub>偶</sub>(<em>x</em>²) + <em>x</em> · <em>f</em><sub>奇</sub>(<em>x</em>²)
+      <span class="lbl">把偶次项和奇次项分开，各占一半 —— 因为 (ωᵏ)² = ω<sup>2k</sup></span>
+    </div>
+    <p>关键在这一步：<strong><code>(ωᵏ)²</code> 只有 n/2 种不同取值</strong>（因为 <code>ω<sup>k+n/2</sup></code> 平方后和 <code>ωᵏ</code> 一样）。
+    于是：</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.15">
+      <em>f</em>(<em>ω</em><sup><em>k</em></sup>) = <em>f</em><sub>偶</sub>(<em>ω</em><sup>2<em>k</em></sup>) + <em>ω</em><sup><em>k</em></sup>·<em>f</em><sub>奇</sub>(<em>ω</em><sup>2<em>k</em></sup>)<br>
+      <em>f</em>(<em>ω</em><sup><em>k</em>+<em>n</em>/2</sup>) = <em>f</em><sub>偶</sub>(<em>ω</em><sup>2<em>k</em></sup>) <span class="op">−</span> <em>ω</em><sup><em>k</em></sup>·<em>f</em><sub>奇</sub>(<em>ω</em><sup>2<em>k</em></sup>)
+      <span class="lbl" style="text-align:left">两行只差一个符号 —— 算一次能得两个值（这就是 ω<sup>n/2</sup>=−1 的用处）</span>
+    </div>
+    <p>
+      递归下去，总复杂度从 <code>O(n²)</code> 变成 <code>O(n log n)</code>。
+      <code>n = 2²⁰</code> 时，从一万亿降到<strong>两千万</strong> —— 快五万倍。
+    </p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">n</th><th style="width:190px">n²（笨办法）</th><th style="width:190px">n log₂n（FFT）</th><th>倍数</th></tr></thead>
+        <tbody>
+          <tr><td>2¹⁰ = 1,024</td><td>约 100 万</td><td>约 1 万</td><td>100×</td></tr>
+          <tr><td>2²⁰ ≈ 100 万</td><td>约 1 万亿</td><td>约 2 千万</td><td><strong>50,000×</strong></td></tr>
+          <tr><td>2²⁸ ≈ 2.7 亿</td><td>约 7×10¹⁶</td><td>约 7.5×10⁹</td><td><strong>10,000,000×</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      这不是「优化」，这是「可做与不可做的分界线」。
+      <strong>没有单位根就没有 FFT，没有 FFT 就没有现代 ZKP。</strong>
+    </p>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">还有个小细节：NTT vs FFT</span>
+        <p>
+          论文里这两个词混着用。严格说：<strong>FFT</strong> 指复数上的快速傅里叶变换，
+          <strong>NTT</strong>（Number Theoretic Transform）指有限域上的同一套算法。
+          因为 ZKP 只做有限域，实际实现里全是 NTT，但作者常顺手写 FFT。
+          <strong>看到 FFT 就当 NTT 理解，不影响。</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s9">
+    <h2><span class="n">09</span>手算：𝔽<sub>17</sub> 的四次单位根</h2>
+    <p class="lead">
+      取 <code>p = 17</code>。<code>p − 1 = 16 = 2⁴</code>，所以 2-adicity = 4，能支持最长 16 点 FFT。
+      这里只找 <strong>4 次</strong>单位根，n = 4。
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>确认 n 整除 p−1</h4>
+        <p><code>4 | 16</code> ✓。有解。如果 n 不整除 p−1，<strong>一个根都没有</strong>，别白试。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>找一个生成元 g</h4>
+        <p>
+          试 <code>g = 3</code>：<code>3¹=3, 3²=9, 3³=27≡10, 3⁴=30≡13, 3⁵=39≡5, 3⁶=15, 3⁷=45≡11, 3⁸=33≡16≡−1</code>。<br>
+          到第 8 步才出现 −1，说明阶是 16 —— <strong>3 是生成元</strong>。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>算出 ω</h4>
+        <p>
+          <code>ω = g<sup>(p−1)/n</sup> = 3<sup>16/4</sup> = 3⁴ = 13</code>。<br>
+          所以 <code>ω = 13</code> 是 𝔽<sub>17</sub> 里的一个四次单位根。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">4</div>
+        <h4>验证四个根</h4>
+        <p>
+          <code>ω⁰ = 1</code><br>
+          <code>ω¹ = 13</code><br>
+          <code>ω² = 169 mod 17 = 169 − 153 = 16 ≡ −1</code> ✓ 正好是「半圈」<br>
+          <code>ω³ = 16×13 = 208 ≡ 208 − 204 = 4</code><br>
+          <code>ω⁴ = 4×13 = 52 ≡ 1</code> ✓ 闭环
+        </p>
+      </div>
+    </div>
+    <p>
+      四个根是 <code>{1, 13, 16, 4}</code>。它们在数轴上散得很乱 —— 没有圆，看不出规律。
+      但它们的<strong>代数行为</strong>和 <code>{1, i, −1, −i}</code> 一模一样：
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">复数版</th><th style="width:170px">𝔽<sub>17</sub> 版</th><th>共同性质</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>1</td><td>单位元</td></tr>
+          <tr><td>i</td><td>13</td><td>平方 = −1</td></tr>
+          <tr><td>−1</td><td>16</td><td>平方 = 1，本身是 −1</td></tr>
+          <tr><td>−i</td><td>4</td><td>平方 = −1</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">验算一下「半圈」那条性质</span>
+        <p>
+          <code>ω² = 16</code>，而 <code>−1 = 17 − 1 = 16</code>。完全一致。<br>
+          这不是巧合：<code>ω<sup>n/2</sup></code> 是 <code>x² = 1</code> 的根，除了 1 就只剩 −1。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s10">
+    <h2><span class="n">10</span>小结与误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li>「根」有三种：<strong>多项式的根</strong>（f(r)=0）、<strong>单位根</strong>（ωⁿ=1）、<strong>开方</strong>。ZKP 主要用前两种。</li>
+        <li>因式定理：<code>r 是根 ⟺ (x−r) 整除 f</code>。余数定理：<code>用 (x−r) 除的余数 = f(r)</code>。<strong>KZG 全靠这个</strong>。</li>
+        <li>单位根 = 乘 n 次回到 1 的元素。复数版在单位圆上均匀分布，有限域版是一堆散乱的整数，<strong>代数性质完全相同</strong>。</li>
+        <li><code>ω<sup>n/2</sup> = −1</code>（n 为偶数时）是 FFT 分治的全部依据。</li>
+        <li>𝔽<sub>p</sub> 里存在 n 次单位根 <strong>⟺ n 整除 p−1</strong>。不整除就一个都没有。</li>
+        <li><strong>2-adicity</strong> = p−1 里 2 的幂次，决定最大 FFT 长度。这是选域的硬指标。</li>
+        <li>FFT 把 <code>O(n²)</code> 的求值降到 <code>O(n log n)</code>，在 n=2²⁰ 时快约 5 万倍。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「𝔽<sub>p</sub> 里的单位根一定存在。」</span></div>
+      <div class="r"><i>✓</i><div><strong>不一定。</strong> 必须 <code>n | (p−1)</code>。
+        比如 𝔽<sub>7</sub> 里 <code>p−1 = 6</code>，所以有 1、2、3、6 次单位根，<strong>没有 4 次和 5 次</strong>。
+        这就是为什么电路的「evaluation domain」大小必须先和域参数对齐。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「单位根就是复数里那个 e<sup>2πi/n</sup>。」</span></div>
+      <div class="r"><i>✓</i><div>那只是<strong>一个</strong>具体的表示。单位根的本质是「阶为 n 的群元素」，
+        在任何有足够单位根的域里都存在。论文里用 <code>ω</code> 而不是具体数值，就是为了保持这种抽象。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「FFT 是一种近似算法，会有误差。」</span></div>
+      <div class="r"><i>✓</i><div>FFT 本身是<strong>精确</strong>的代数恒等式，没有近似。
+        有误差的是「用浮点实现复数 FFT」。ZKP 用 NTT（有限域版），<strong>结果精确到最后一个比特</strong>。
+        这点很重要 —— 验证不能容忍误差。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「多项式次数越高越难算，所以要尽量避免高次。」</span></div>
+      <div class="r"><i>✓</i><div>现代方案（FRI、STARK、Binius）<strong>恰恰用极高的次数</strong>来换安全性，
+        靠的就是 FFT/NTT 把高次求值压到 <code>O(n log n)</code>。
+        真正的瓶颈是<strong>证明大小</strong>和<strong>内存</strong>，不是次数本身。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="00-03-rings-fields.html">
+      <span class="pl">← 上一模块 · 00 · 03</span>
+      <span class="pt">环与域</span>
+    </a>
+    <a href="00-05-notation.html">
+      <span class="pl">下一模块 · 00 · 05</span>
+      <span class="pt">符号黑话：论文里的希腊字母怎么读 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

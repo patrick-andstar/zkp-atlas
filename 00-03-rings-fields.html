@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>环与域 · 为什么素数这么关键 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">环与域</div>
+  <div class="side-s">00 · Rings &amp; Fields</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>为什么一个运算不够</a>
+    <a href="#s2"><span>2</span>环：加法 + 乘法</a>
+    <a href="#s3"><span>3</span>零因子：合数的灾难</a>
+    <a href="#s4"><span>4</span>域：再补一条</a>
+    <a href="#s5"><span>5</span>三张表看懂层级</a>
+    <a href="#s6"><span>6</span>素域与扩域</a>
+    <a href="#s7"><span>7</span>特征是什么</a>
+    <a href="#s8"><span>8</span>为什么 ZKP 不用 ℚ 和 ℝ</a>
+    <a href="#s9"><span>9</span>多项式：真正操作的对象</a>
+    <a href="#s10"><span>10</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="00-02-groups.html">← 上一模块 · 群</a>
+    <a href="00-04-roots.html">下一模块 · 根 →</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>为什么一个运算不够</a></li>
+      <li><a href="#s2"><span>2</span>环</a></li>
+      <li><a href="#s3"><span>3</span>零因子</a></li>
+      <li><a href="#s4"><span>4</span>域</a></li>
+      <li><a href="#s5"><span>5</span>层级表</a></li>
+      <li><a href="#s6"><span>6</span>素域与扩域</a></li>
+      <li><a href="#s7"><span>7</span>特征</a></li>
+      <li><a href="#s8"><span>8</span>为什么不用 ℚ</a></li>
+      <li><a href="#s9"><span>9</span>多项式运算</a></li>
+      <li><a href="#s10"><span>10</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>00 零基础前置</span><span>/</span><b>00 · 03</b></div>
+
+  <header>
+    <h1>环与域：两个运算才够用</h1>
+    <p class="tagline">
+      群只有一个运算，写不出 <code>3x² + 2x + 1</code> 这种东西 —— 那需要加和乘同时在场。
+      加上第二个运算，就有了<strong>环</strong>；再要求「除 0 以外都能除」，才有了<strong>域</strong>。
+      而「能不能除」，取决于模数是不是素数。
+    </p>
+    <div class="meta">
+      <span class="hot">零基础必读</span>
+      <span>≈ 22 min</span>
+      <span>难度 2 / 5</span>
+      <span>前置：00 · 02</span>
+      <span>被用于：有限域 · 多项式 · 全部证明系统</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>为什么一个运算不够</h2>
+    <p class="lead">
+      群只能做一件事。但 ZKP 的全部内容，几乎都是<strong>多项式</strong>。
+    </p>
+    <div class="fml">
+      <em>f</em>(<em>x</em>) = 3<em>x</em>² + 2<em>x</em> + 1
+      <span class="lbl">这一个式子里，「3x²」需要乘法，「+」需要加法，两者必须同时存在</span>
+    </div>
+    <p>
+      只给你加法，你写不出 <code>x²</code>。只给你乘法，你写不出 <code>x + 1</code>。
+      所以必须有一个结构<strong>同时容纳两种运算</strong>，还得保证它们能互相配合 ——
+      这个配合规则叫<strong>分配律</strong>。
+    </p>
+    <div class="fml">
+      <em>a</em> · ( <em>b</em> + <em>c</em> ) = <em>a</em>·<em>b</em> + <em>a</em>·<em>c</em>
+      <span class="lbl">展开括号的合法性来源 —— 没有它，多项式根本没法运算</span>
+    </div>
+    <p>
+      这就是「环」的动机：<strong>把两个群缝在一起，再要求乘法能分配到加法上。</strong>
+    </p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>环：加法是群，乘法宽松一点</h2>
+    <p>定义可以拆成三句话读：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px">要求</th><th style="width:150px">严格程度</th><th>说人话</th></tr></thead>
+        <tbody>
+          <tr><td>加法构成<strong>阿贝尔群</strong></td><td>最严</td><td>能加、能减、有 0、可交换</td></tr>
+          <tr><td>乘法构成<strong>半群</strong></td><td>宽松</td><td>能乘、结合律成立。<strong>不要求</strong>有 1、<strong>不要求</strong>可逆</td></tr>
+          <tr><td>乘法对加法<strong>分配</strong></td><td>缝合剂</td><td>能展开括号</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      注意中间那行的宽松程度：<strong>环里的乘法可以没有逆元</strong>。
+      这正是 <code>ℤ</code>（整数）的处境 —— 2 乘什么都得不到 1，但 ℤ 仍然是环。
+    </p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:210px">结构</th><th style="width:110px">是环吗</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>整数 ℤ</td><td><strong>是</strong></td><td>标准范例。有 1，但没有乘法逆元（除了 ±1）</td></tr>
+          <tr><td>模 12 余数 ℤ<sub>12</sub></td><td><strong>是</strong></td><td>能加能乘，但 6 没逆元 —— 所以只是环，不是域</td></tr>
+          <tr><td>模 7 余数 ℤ<sub>7</sub></td><td><strong>是</strong></td><td>而且更强：它是域</td></tr>
+          <tr><td>多项式 ℤ[x]</td><td><strong>是</strong></td><td>系数是整数、变量是 x 的所有多项式</td></tr>
+          <tr><td>n×n 矩阵</td><td><strong>是</strong></td><td>加法逐项、乘法是矩阵乘。不可交换 —— 所以是「非交换环」</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">
+      表里第 2 行和第 3 行，就是本页要讲的全部内容 —— 差一个条件，命运完全不同。
+    </p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>零因子：合数模会烂在哪</h2>
+    <p class="lead">
+      在 <code>ℤ<sub>12</sub></code> 里算 <code>3 × 4</code>：
+    </p>
+    <div class="fml">
+      3 × 4 = 12 ≡ 0 ( mod 12 )
+      <span class="lbl">两个都不为 0 的数，乘出来是 0</span>
+    </div>
+    <p>
+      这叫<strong>零因子</strong>（zero divisor）。它带来的后果比「没逆元」更严重：
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">后果一：约分失效</span>
+        <p>
+          普通算术里，<code>ac = bc</code> 且 <code>c ≠ 0</code> ⟹ <code>a = b</code>。<br>
+          但 <code>ℤ<sub>12</sub></code> 里 <code>3×1 = 3</code>，<code>3×5 = 15 ≡ 3</code> ——
+          两边都等于 3，但 <code>1 ≠ 5</code>。<strong>不能约掉 3。</strong>
+        </p>
+      </div>
+    </div>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">后果二：多项式根的个数失控</span>
+        <p>
+          域上一个 n 次多项式<strong>最多有 n 个根</strong> —— 这是 Schwartz–Zippel 引理和整个 ZKP 概率论证的地基。<br>
+          但在 <code>ℤ<sub>12</sub></code> 里，<code>x² − 1</code> 的根有 <strong>四个</strong>：1, 5, 7, 11
+          （因为 <code>1²=1</code>，<code>5²=25≡1</code>，<code>7²=49≡1</code>，<code>11²=121≡1</code>）。<br>
+          <strong>「随机取一个点验证」这套方法直接崩塌。</strong>
+        </p>
+      </div>
+    </div>
+
+    <h3>为什么素数模就没有零因子</h3>
+    <p>
+      假设 <code>p</code> 是素数，且有 <code>a·b ≡ 0 (mod p)</code>，其中 <code>0 &lt; a,b &lt; p</code>。<br>
+      这意味着 <code>p | a·b</code>。而 p 是素数 —— 一个素数整除一个乘积，就必然整除其中一个因子。
+    </p>
+    <div class="fml">
+      <em>p</em> | <em>a</em>·<em>b</em> &nbsp;⟹&nbsp; <em>p</em> | <em>a</em> 或 <em>p</em> | <em>b</em>
+      <span class="lbl">但 a、b 都比 p 小且非零，p 不可能整除它们 —— 矛盾。所以零因子不存在。</span>
+    </div>
+    <p>
+      这条性质叫「素性」的欧几里得引理。<strong>「素数模没有零因子」和「素数模是域」是同一件事的两种说法。</strong>
+    </p>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>域：再补一条，全部打通</h2>
+    <p class="lead">
+      域 = 环 + <strong>每个非零元都有乘法逆元</strong>。加上这一条，四则运算全部封闭。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">能力</th><th style="width:120px">群</th><th style="width:120px">环</th><th>域</th></tr></thead>
+        <tbody>
+          <tr><td>加法 + 减法</td><td>✓</td><td>✓</td><td>✓</td></tr>
+          <tr><td>乘法</td><td>✗</td><td>✓</td><td>✓</td></tr>
+          <tr><td>展开括号</td><td>✗</td><td>✓</td><td>✓</td></tr>
+          <tr><td>除法（除 0 外）</td><td>✗</td><td><strong>✗</strong></td><td><strong>✓</strong></td></tr>
+          <tr><td>能解任意一次方程</td><td>✗</td><td>✗</td><td>✓</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      最后一行值得展开：<code>ax + b = 0</code> 要在集合内有解，就要能算 <code>x = −b/a</code>。
+      没有除法，这个方程就解不出来 —— 而 ZKP 里每一个约束都长这样。
+    </p>
+
+    <h3>域的三条「免费赠品」</h3>
+    <p>一旦是域，下面这些性质自动成立，不需要额外假设。它们每一条在后面都会被用到：</p>
+    <ol>
+      <li><strong>没有零因子</strong> —— 前面证过，是「可除」的等价说法。</li>
+      <li><strong>n 次多项式最多 n 个根</strong> —— 支撑 Schwartz–Zippel（01 · 09）。</li>
+      <li><strong>n+1 个点唯一确定一个 n 次多项式</strong> —— 支撑插值和 KZG 的「开口唯一性」。</li>
+    </ol>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">这三条就是 ZKP 的全部地基</span>
+        <p>
+          第三条尤其关键：<strong>如果同一批点能插出两个不同的多项式，多项式承诺就毫无意义</strong> ——
+          证明者可以换一个多项式蒙混过关。而「唯一定理」成立的前提，正是系数在<strong>域</strong>里。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>三张表，把层级钉死</h2>
+
+    <h3>表一：从松到紧</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:120px">结构</th><th style="width:180px">几个运算</th><th>加了什么条件</th><th style="width:180px">典型例子</th></tr></thead>
+        <tbody>
+          <tr><td>集合</td><td>0</td><td>—</td><td>{🍎, 🍌}</td></tr>
+          <tr><td>半群</td><td>1</td><td>封闭 + 结合</td><td>正整数 + 加法</td></tr>
+          <tr><td><strong>群</strong></td><td>1</td><td>+ 单位元 + 逆元</td><td>ℤ + 加法；𝔽<sub>7</sub>* × 乘法</td></tr>
+          <tr><td><strong>环</strong></td><td>2</td><td>+ 第二个运算 + 分配律</td><td>ℤ；ℤ<sub>12</sub>；多项式环</td></tr>
+          <tr><td><strong>域</strong></td><td>2</td><td>+ 非零元全可逆</td><td>ℚ, ℝ, ℂ, 𝔽<sub>p</sub>, 𝔽<sub>p²</sub></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>表二：模 n 的世界，n 决定一切</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:110px">模数</th><th style="width:150px">是环吗</th><th style="width:150px">是域吗</th><th>关键事实</th></tr></thead>
+        <tbody>
+          <tr><td>n = 7（素数）</td><td>✓</td><td><strong>✓</strong></td><td>1…6 全有逆元，无零因子</td></tr>
+          <tr><td>n = 12（合数）</td><td>✓</td><td><strong>✗</strong></td><td>3×4≡0，6 无逆元</td></tr>
+          <tr><td>n = 9（素数幂）</td><td>✓</td><td><strong>✗</strong></td><td>3×3≡0。素数幂也不是域</td></tr>
+          <tr><td>n = 2（最小素数）</td><td>✓</td><td><strong>✓</strong></td><td>𝔽₂ = {0,1}，只有两个元素，也完全合法</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">
+      第三行是个陷阱：「9 是素数幂，应该还好吧」—— 不行。域要求模数<strong>是素数本身</strong>，不是素数的幂。
+    </p>
+
+    <h3>表三：𝔽<sub>p</sub> 与 ℚ 的逐项对照</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px">性质</th><th style="width:200px">有理数 ℚ</th><th>有限域 𝔽<sub>p</sub></th></tr></thead>
+        <tbody>
+          <tr><td>元素个数</td><td>无穷（可数）</td><td><strong>恰好 p 个</strong></td></tr>
+          <tr><td>四则运算</td><td>齐全</td><td>齐全</td></tr>
+          <tr><td>能比较大小</td><td>能</td><td><strong>不能</strong>（没有全序）</td></tr>
+          <tr><td>有「小数」概念</td><td>有</td><td><strong>没有</strong></td></tr>
+          <tr><td>计算机能精确表示</td><td>不能（分数会溢出）</td><td><strong>能</strong>（定长整数）</td></tr>
+          <tr><td>适合做密码学</td><td>不适合</td><td><strong>适合</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">「不能比较大小」不是缺陷，是特性</span>
+        <p>
+          正因为 <code>𝔽<sub>p</sub></code> 里没有大小顺序，攻击者无法通过「这个数看起来更小」来推断秘密。
+          如果 ZKP 用 ℚ，一个承诺值的「大小」就会泄露信息。<br>
+          代价是：电路里做 <code>a &lt; b</code> 这种比较，必须拆成二进制位或查表 —— 这就是范围证明存在的原因。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>素域与扩域：从 𝔽<sub>p</sub> 到 𝔽<sub>p²</sub></h2>
+    <p>
+      <code>𝔽<sub>p</sub></code> 叫<strong>素域</strong>（prime field），因为它不能再拆成更小的域。
+      但域也能「往上长」，方式和 00 · 01 讲的 ℝ → ℂ 一模一样。
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>先看 ℝ → ℂ 是怎么做的</h4>
+        <p>
+          <code>x² + 1 = 0</code> 在 ℝ 里无解。于是<strong>硬造</strong>一个符号 <code>i</code>，
+          规定 <code>i² = −1</code>，然后让所有 <code>a + bi</code> 组成新集合。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>𝔽<sub>p</sub> → 𝔽<sub>p²</sub> 照抄这个套路</h4>
+        <p>
+          找一个在 <code>𝔽<sub>p</sub></code> 里<strong>无解</strong>的二次方程 <code>x² = β</code>（β 是非二次剩余）。
+          硬造符号 <code>u</code>，规定 <code>u² = β</code>，新元素写成 <code>a + b·u</code>。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>运算怎么算</h4>
+        <p>
+          加法逐分量：<code>(a+bu) + (c+du) = (a+c) + (b+d)u</code>。<br>
+          乘法展开后把 <code>u²</code> 换成 β：<code>(a+bu)(c+du) = (ac + bdβ) + (ad+bc)u</code>。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">4</div>
+        <h4>规模</h4>
+        <p>
+          <code>a</code> 有 p 种取法，<code>b</code> 有 p 种，所以 <code>𝔽<sub>p²</sub></code> 有 <strong>p²</strong> 个元素。
+          一直往上可以到 <code>𝔽<sub>p⁶</sub></code>、<code>𝔽<sub>p¹²</sub></code>。
+        </p>
+      </div>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:130px">域</th><th style="width:130px">元素个数</th><th>在 ZKP 里干什么</th></tr></thead>
+        <tbody>
+          <tr><td><code>𝔽<sub>p</sub></code></td><td>p</td><td>曲线坐标、电路里的每个变量</td></tr>
+          <tr><td><code>𝔽<sub>p²</sub></code></td><td>p²</td><td>G2 群的点坐标（每个坐标占两个分量）</td></tr>
+          <tr><td><code>𝔽<sub>p⁶</sub></code></td><td>p⁶</td><td>配对计算中的塔式中间层</td></tr>
+          <tr><td><code>𝔽<sub>p¹²</sub></code></td><td>p¹²</td><td>配对的目标群 𝔾<sub>T</sub> 住在这里</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      一句话记住：<strong>𝔽<sub>p</sub> 是「数字」，𝔽<sub>p²</sub> 是「一对数字」，𝔽<sub>p¹²</sub> 是「十二个数字捆一起」。</strong>
+      扩域的元素在计算机里就是一个小数组，运算则是按固定公式展开 —— 没有魔法，只是麻烦。
+    </p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>「特征」是什么：一个被忽视但常考的词</h2>
+    <p>论文里会写「特征为 p 的域」。定义很短：</p>
+    <div class="fml">
+      最小的正整数 <em>n</em> 使 &nbsp;<span style="font-size:15px">1 + 1 + ⋯ + 1</span>（<em>n</em> 个）<span class="op">=</span> 0
+      <span class="lbl">就是把 1 反复相加，第一次加出 0 需要几次</span>
+    </div>
+    <p>
+      在 <code>ℝ</code> 里，1 加多少次都不会变成 0 —— 所以 ℝ 的特征是 <strong>0</strong>（约定）。<br>
+      在 <code>𝔽<sub>7</sub></code> 里：<code>1+1+1+1+1+1+1 = 7 ≡ 0</code> —— 所以特征是 <strong>7</strong>。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这个定义带来的最大冲击</span>
+        <p>
+          在特征 p 的域里，<code>p = 0</code>。<br>
+          所以在 <code>𝔽<sub>7</sub></code> 里，「7 个 1 加起来等于 0」不是近似，是<strong>精确的等式</strong>。
+          论文里写 <code>p · g = 𝒪</code>（椭圆曲线上 p 倍点等于无穷远点）就是这个意思。
+          初学时看到「p 等于 0」会觉得矛盾，因为它和你熟悉的整数 p 不是同一个对象。
+        </p>
+      </div>
+    </div>
+    <p>
+      另一个常用推论（Freshman's dream）：
+    </p>
+    <div class="fml">
+      ( <em>a</em> + <em>b</em> )<sup><em>p</em></sup> = <em>a</em><sup><em>p</em></sup> + <em>b</em><sup><em>p</em></sup>
+      <span class="lbl">在特征 p 的域里成立 —— 中间那堆二项式系数全被 p 整除，全归零</span>
+    </div>
+    <p>
+      正常展开时中间项是 <code>C(p,k)·aᵏ·b<sup>p−k</sup></code>，而 <code>C(p,k)</code> 对 <code>0&lt;k&lt;p</code> 都能被 p 整除 ——
+      在特征 p 里就是 0。这个小技巧在 FRI 和 Binius 的推导里反复出现。
+    </p>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>为什么不用 ℚ 或 ℝ？</h2>
+    <p class="lead">
+      既然 ℚ 和 ℝ 都是域，四则运算齐全，为什么 ZKP 非要费劲造一个「有限的域」？
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:180px">问题</th><th style="width:230px">用 ℚ / ℝ 会怎样</th><th>用 𝔽<sub>p</sub> 会怎样</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>精确表示</strong></td>
+            <td>1/3 是无限小数；实现里只能用浮点，有误差</td>
+            <td>每个元素是 0…p−1 的整数，<strong>完全精确</strong></td>
+          </tr>
+          <tr>
+            <td><strong>相等判断</strong></td>
+            <td>浮点下 <code>0.1+0.2 ≠ 0.3</code>，验证结果不可信</td>
+            <td>整数比较，<strong>要么等要么不等</strong></td>
+          </tr>
+          <tr>
+            <td><strong>随机采样</strong></td>
+            <td>连续空间无法「均匀随机取一个数」</td>
+            <td>从 p 个里等概率抽，<strong>可证明的概率界</strong></td>
+          </tr>
+          <tr>
+            <td><strong>抗量子/抗分析</strong></td>
+            <td>实数上的运算可被数值方法逼近反推</td>
+            <td>离散结构，<strong>只能暴力搜</strong></td>
+          </tr>
+          <tr>
+            <td><strong>计算速度</strong></td>
+            <td>大数分数运算极慢</td>
+            <td>定长整数，<strong>硬件原生支持</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      最关键的是第三行。<strong>ZKP 的安全性全是概率性的</strong> ——
+      「验证者随机挑一个点，如果证明者作弊，被抓到的概率至少是 1 − n/p」。
+      这句话要成立，前提是「随机挑一个点」这件事<strong>在数学上定义得清楚</strong>。
+      连续空间里做不到，有限集合里可以。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">一句话总结</span>
+        <p>
+          用 <code>𝔽<sub>p</sub></code> 不是因为「更高级」，是因为<strong>只有它能被计算机精确地、可证明地、快速地玩</strong>。
+          数学上 ℚ 更「自然」，工程上 𝔽<sub>p</sub> 才是唯一选择。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s9">
+    <h2><span class="n">09</span>多项式：ZKP 真正操作的对象</h2>
+    <p class="lead">
+      第 04 节说过「n+1 个点唯一确定一个 n 次多项式」，但没讲多项式本身怎么运算。
+      而 02 · 01 的后半程（QAP）、02 · 02 的全部、01 · 04 的插值，都在拿多项式做加乘除。
+      这一节补齐。
+    </p>
+
+    <h3>多项式就是「一串系数挂在 x 的幂上」</h3>
+    <div class="fml">
+      <em>f</em>(<em>x</em>) = <em>a</em><sub>0</sub> + <em>a</em><sub>1</sub><em>x</em> + <em>a</em><sub>2</sub><em>x</em><sup>2</sup> + ⋯ + <em>a<sub>d</sub></em><em>x</em><sup><em>d</em></sup>
+      <span class="lbl">d 叫「次数」，a<sub>d</sub> ≠ 0。这里的 a<sub>i</sub> 全是 𝔽<sub>p</sub> 里的数</span>
+    </div>
+    <p>
+      关键认知：<strong>多项式其实是「把向量竖起来写」</strong>。
+      系数向量 <code>(a₀, a₁, …, a_d)</code> 和多项式一一对应 —— 这就是 01 · 04 说的「两种表示法」之一（系数表示）。
+    </p>
+
+    <h3>加法：逐系数加，次数取大的</h3>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      ( 1 + 2x + 3x² ) + ( 5 + 0x + 1x² ) = 6 + 2x + 4x²<br>
+      <span style="color:#55703F">deg(f + g) ≤ max( deg f , deg g )</span> &nbsp;<span style="color:#7C8894">← 可能因为最高项抵消而变小</span>
+    </div>
+
+    <h3>乘法：每个配每个，次数相加</h3>
+    <div class="fml">
+      deg( <em>f</em> · <em>g</em> ) = deg <em>f</em> + deg <em>g</em>
+      <span class="lbl">这是最常用的一条 —— 因为它意味着「乘法会让次数膨胀」</span>
+    </div>
+    <p>手算一个：</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      ( 1 + 2x ) · ( 3 + x ) = 1·3 + 1·x + 2x·3 + 2x·x<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= 3 + x + 6x + 2x² = <strong>3 + 7x + 2x²</strong><br><br>
+      <span style="color:#7C8894">次数：1 次 × 1 次 = 2 次 ✓ 对得上</span>
+    </div>
+    <p>
+      注意 <code>x</code> 项的系数 <code>1 + 6 = 7</code> —— <strong>「同类项合并」就是这里的「逐系数相加」</strong>。
+      如果系数在 <code>𝔽<sub>p</sub></code> 里，合并后还要取模。
+    </p>
+
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">为什么 ZKP 怕次数膨胀</span>
+        <p>
+          电路里有 n 个乘法门，如果每次都把多项式乘一遍，次数会指数爆炸。
+          这就是为什么 FFT 只做「求值」不做「乘法」，而 02 · 01 的 QAP
+          要把约束<b>编码成</b>多项式、再用<b>整除</b>来检查，而不是直接展开相乘。<br>
+          记住这条：<strong>「次数」是 ZKP 里最贵的资源</strong>，比系数个数还贵。
+        </p>
+      </div>
+    </div>
+
+    <h3>除法：有商有余，和整数一模一样</h3>
+    <p>
+      多项式的长除法，规则和整数除法完全同构：被除数 = 除数 × 商 + 余数，
+      而且<strong>余数的次数一定小于除数的次数</strong>。
+    </p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      用 ( x − 2 ) 除 ( x² − 5x + 6 )：<br>
+      商 = x − 3 ，余数 = 0 &nbsp;<span style="color:#55703F">← 整除，因为 2 是根</span><br><br>
+      用 ( x − 1 ) 除 ( x² − 5x + 6 )：<br>
+      商 = x − 4 ，余数 = 2 &nbsp;<span style="color:#A6432B">← 有余数，因为 f(1) = 2</span>
+    </div>
+    <p>
+      第二行验证了 00 · 04 的余数定理：<code>f(1) = 1 − 5 + 6 = 2</code>，而余数正是 2。
+      <strong>「余数 = 那一点的取值」</strong>，这就是 KZG 开口证明的原理。
+    </p>
+
+    <h3>零点多项式 Z<sub>H</sub>(x)：一个专门「在该为零的地方为零」的多项式</h3>
+    <p class="lead">
+      这是 02 · 01 里最容易被忽略、但绝对不能不懂的构造。
+    </p>
+    <p>
+      设 <code>H</code> 是一个点集（比如全部 n 次单位根，或者电路里的 n 个「行号」）。
+      <strong>零点多项式</strong>是「在 H 上全为 0、在别处不为 0」的那个多项式：
+    </p>
+    <div class="fml">
+      <em>Z</em><sub><em>H</em></sub>(<em>x</em>) = Π<sub><em>h</em> ∈ <em>H</em></sub> ( <em>x</em> − <em>h</em> )
+      <span class="lbl">每个点配一个因式，乘起来。H 有几个点，次数就是几</span>
+    </div>
+    <p>当 <code>H = {1, ω, ω², …, ω<sup>n−1</sup>}</code>（全部 n 次单位根）时，它会化简成一个极简的形式：</p>
+    <div class="fml">
+      <em>Z</em><sub><em>H</em></sub>(<em>x</em>) = <em>x</em><sup><em>n</em></sup> − 1
+      <span class="lbl">因为 x<sup>n</sup> − 1 的根恰好就是全部 n 次单位根 —— 和 00 · 04 完全接上了</span>
+    </div>
+
+    <h3>它为什么是「约束」的核心</h3>
+    <p>
+      现在把三件事串起来：
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>我要证明：某个多项式 f 在 H 的每个点上都是 0</h4>
+        <p>
+          直接检查 n 个点，代价是 O(n)。验证者不想干这个。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>换一个说法</h4>
+        <p>
+          由因式定理（00 · 04）：<strong>f 在每个 h 上为 0 ⟺ 每个 (x − h) 都整除 f</strong>。
+          而不同的 <code>(x − h)</code> 之间没有公因式（两两互素），所以等价于<strong>把它们全乘起来、再整除 f</strong>。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>于是一句话搞定</h4>
+        <p>
+          <code>Z<sub>H</sub>(x)</code> 整除 <code>f(x)</code> &nbsp;⟺&nbsp; <code>f</code> 在 H 上全为 0。<br>
+          而「整除」只要检查一件事：<strong>商 <code>q(x) = f(x) / Z<sub>H</sub>(x)</code> 是不是一个合法的多项式</strong>
+          （没有余数）。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">4</div>
+        <h4>再把它变成一个点上的检查</h4>
+        <p>
+          验证者随机挑一个点 <code>ζ</code>，要求证明者给出 <code>q(ζ)</code>，
+          然后验算 <code>f(ζ) = q(ζ) · Z<sub>H</sub>(ζ)</code>。<br>
+          <strong>n 次检查变成了 1 次检查</strong>，靠的是 Schwartz–Zippel（01 · 09）。
+        </p>
+      </div>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">这就是 QAP 的全部骨架</span>
+        <p>
+          02 · 01 后面的「从 R1CS 到 QAP」做的就是这个：
+          把「n 条约束都成立」编码成「某个多项式能被 <code>Z<sub>H</sub></code> 整除」。<br>
+          <strong>你现在已经知道它要干什么了</strong>，剩下的细节只是「怎么编码」。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s10">
+    <h2><span class="n">10</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li><strong>环</strong> = 两个运算 + 分配律。乘法<strong>不要求</strong>可逆。</li>
+        <li><strong>域</strong> = 环 + 非零元全可逆。四则运算齐全。</li>
+        <li>合数模会产生<strong>零因子</strong>（<code>3×4≡0 mod 12</code>），导致约分失效、多项式根数失控。</li>
+        <li>素数模 ⟺ 无零因子 ⟺ 构成域。三者等价。</li>
+        <li>域的三大赠品：无零因子、n 次多项式至多 n 根、n+1 点唯一确定 n 次多项式。<strong>ZKP 全靠这三条</strong>。</li>
+        <li>扩域 <code>𝔽<sub>p²</sub></code> 就是把 ℝ→ℂ 的套路搬到有限域上，元素是「一对数」。</li>
+        <li><strong>特征</strong> p 意味着 <code>p = 0</code>，且 <code>(a+b)<sup>p</sup> = a<sup>p</sup>+b<sup>p</sup></code>。</li>
+        <li>多项式乘法<strong>次数相加</strong>：<code>deg(fg) = deg f + deg g</code>。次数是 ZKP 里最贵的资源。</li>
+        <li><strong>零点多项式</strong> <code>Z<sub>H</sub>(x) = Π(x−h)</code> 在 H 上全为 0；<code>Z<sub>H</sub></code> 整除 f ⟺ f 在 H 上全为 0。<strong>QAP 的骨架就是这一句</strong>。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「环就是圆圈，域就是范围。」</span></div>
+      <div class="r"><i>✓</i><div>这两个词都是历史遗留的名字（ring / field），和几何形状毫无关系。
+        field 是德语 Körper（「体」）的英译，ring 的来历说法不一、没有定论。
+        <strong>当成纯粹的名字记住，别去联想画面。</strong></div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「ℤ 是域，因为它能做加减乘。」</span></div>
+      <div class="r"><i>✓</i><div>ℤ 是<strong>环</strong>，不是域。因为 <code>1/2</code> 不在 ℤ 里 —— 除法不封闭。
+        「能做除法」的意思是「结果还在集合内」，不是「我能写出这个式子」。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「𝔽<sub>9</sub> 就是模 9 的余数。」</span></div>
+      <div class="r"><i>✓</i><div><strong>模 9 的余数（ℤ/9ℤ）不是域</strong>，因为 9 不是素数，有零因子。<br>
+        但 <code>𝔽<sub>9</sub></code> <strong>确实存在</strong> —— 它的元素是「一对模 3 的数」，
+        需要写成 <code>𝔽<sub>3²</sub></code>，和 <code>ℤ/9ℤ</code> <strong>完全是两个结构</strong>
+        （元素个数都是 9，但运算规则不同，后者不是域）。<br>
+        规矩记死：记号 <code>𝔽<sub>q</sub></code> 里 <strong>q 必须是素数幂</strong>。
+        所以 𝔽<sub>7</sub>、𝔽<sub>9</sub>、𝔽<sub>2¹²⁸</sub> 都合法，而 𝔽<sub>12</sub> 不存在。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「特征就是域里元素的个数。」</span></div>
+      <div class="r"><i>✓</i><div>特征和大小是两回事。<code>𝔽<sub>p¹²</sub></code> 有 <code>p¹²</code> 个元素，但特征还是 <strong>p</strong>。
+        大小是「有多少个」，特征是「1 加几次归零」。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="00-02-groups.html">
+      <span class="pl">← 上一模块 · 00 · 02</span>
+      <span class="pt">群</span>
+    </a>
+    <a href="00-04-roots.html">
+      <span class="pl">下一模块 · 00 · 04</span>
+      <span class="pt">根：ωⁿ = 1 到底是什么 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>

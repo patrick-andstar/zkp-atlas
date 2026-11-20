@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>线性代数 · 向量、内积、矩阵、秩 | ZKP 技术图谱</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+<aside>
+  <a class="back" href="index.html">← 返回图谱</a>
+  <div class="side-t">线性代数</div>
+  <div class="side-s">00 · Linear Algebra</div>
+  <nav id="toc">
+    <a href="#s1"><span>1</span>这一页要解决什么</a>
+    <a href="#s2"><span>2</span>向量：一串数，不是箭头</a>
+    <a href="#s3"><span>3</span>内积：把两个向量压成一个数</a>
+    <a href="#s4"><span>4</span>矩阵：一堆行向量叠起来</a>
+    <a href="#s5"><span>5</span>线性组合：ZKP 的通用语言</a>
+    <a href="#s6"><span>6</span>秩：为什么只装一个乘法</a>
+    <a href="#s7"><span>7</span>手算：从两条约束到矩阵</a>
+    <a href="#s8"><span>8</span>小结与误区</a>
+  </nav>
+  <div class="pager-b">
+    <a href="00-05-notation.html">← 上一模块 · 符号黑话</a>
+    <a href="02-01-arithmetization.html">02 · 算术化（用到本页）→</a>
+  </div>
+</aside>
+
+<main>
+  <details class="mtoc">
+    <summary>本页目录 · contents</summary>
+    <ol>
+      <li><a href="#s1"><span>1</span>这一页要解决什么</a></li>
+      <li><a href="#s2"><span>2</span>向量</a></li>
+      <li><a href="#s3"><span>3</span>内积</a></li>
+      <li><a href="#s4"><span>4</span>矩阵</a></li>
+      <li><a href="#s5"><span>5</span>线性组合</a></li>
+      <li><a href="#s6"><span>6</span>秩</a></li>
+      <li><a href="#s7"><span>7</span>手算</a></li>
+      <li><a href="#s8"><span>8</span>小结与误区</a></li>
+    </ol>
+  </details>
+
+  <div class="crumb"><span>图谱</span><span>/</span><span>00 零基础前置</span><span>/</span><b>00 · 06</b></div>
+
+  <header>
+    <h1>线性代数：ZKP 真正的工作语言</h1>
+    <p class="tagline">
+      如果说「群」是密码学的语言，「线性代数」就是<strong>电路和算术化的语言</strong>。
+      02 · 01 一页里出现了 28 次矩阵和向量，02 · 11 的核心叫「内积论证」。
+      这一页把向量、内积、矩阵、秩全部拆开 —— 从「向量是一串数」开始。
+    </p>
+    <div class="meta">
+      <span class="hot">02 层硬门槛</span>
+      <span>≈ 22 min</span>
+      <span>难度 3 / 5</span>
+      <span>前置：00 · 01 ～ 00 · 03</span>
+      <span>被用于：算术化 · 内积论证 · 折叠方案 · Sumcheck</span>
+    </div>
+  </header>
+
+  <section id="s1">
+    <h2><span class="n">01</span>这一页要解决什么</h2>
+    <p class="lead">
+      下面这两句话，是你在 02 层会反复撞到的：
+    </p>
+    <div class="fml" style="text-align:left;font-size:13.5px;line-height:2.1">
+      「电路被编译成<strong>三个 m×n 的矩阵</strong> A、B、C，和一个长度 n 的<strong>向量</strong> w。」<br>
+      「每条约束长成 <strong>⟨a<sub>i</sub>, w⟩ · ⟨b<sub>i</sub>, w⟩ = ⟨c<sub>i</sub>, w⟩</strong>。」
+      <span class="lbl" style="text-align:left">这两句话如果不拆，02 · 01 后面 80% 的内容都读不了</span>
+    </div>
+    <p>拆开之后一共只有五个词要懂：</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">词</th><th style="width:150px">一句话</th><th>在 ZKP 里干什么</th></tr></thead>
+        <tbody>
+          <tr><td><strong>向量</strong></td><td>一串排好序的数</td><td>存所有变量的取值（w 就是「见证」）</td></tr>
+          <tr><td><strong>内积</strong></td><td>两个向量逐位相乘再相加</td><td>算「一个线性组合等于多少」</td></tr>
+          <tr><td><strong>矩阵</strong></td><td>一堆行向量叠起来</td><td>存整个电路的结构（哪些变量参与哪条约束）</td></tr>
+          <tr><td><strong>线性组合</strong></td><td>一堆向量各乘系数再加起来</td><td>ZKP 里所有约束的本质都长这样</td></tr>
+          <tr><td><strong>秩</strong></td><td>矩阵里真正独立的信息有几行</td><td>解释「为什么 R1CS 每条只能有一次乘法」</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">先给个定心丸</span>
+        <p>
+          这一页<strong>不需要你会解线性方程组</strong>，也不需要行列式、特征值、矩阵求逆。
+          ZKP 用到的线性代数只有「加、乘、求和」三件事，剩下的都是这三件事的组合。
+          市面上线性代数教材里 80% 的内容，这里用不上。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>向量：一串排好序的数</h2>
+    <p class="lead">
+      忘掉中学物理里的「箭头」。在密码学里，向量就是<strong>一串数</strong>，仅此而已。
+    </p>
+    <div class="fml">
+      <em>v</em> = ( <em>v</em><sub>1</sub>, <em>v</em><sub>2</sub>, <em>v</em><sub>3</sub> ) &nbsp;&nbsp;比如&nbsp;&nbsp; <em>v</em> = ( 3, 7, 1 )
+      <span class="lbl">括号里的数叫「分量」。下标从 1 开始（论文里也常见从 0 开始）</span>
+    </div>
+    <p>
+      长度是几，就叫几维向量。上面的 <code>v</code> 是三维的。
+      如果所有分量都在 <code>𝔽<sub>p</sub></code> 里，就叫「<code>𝔽<sub>p</sub></code> 上的向量」——
+      ZKP 里的向量全是这种，每个分量都是模 p 的余数。
+    </p>
+
+    <h3>和「集合」的区别：有序，而且能重复</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:170px"></th><th style="width:200px">集合 {…}</th><th>向量 (…)</th></tr></thead>
+        <tbody>
+          <tr><td>顺序有意义吗</td><td><strong>没有</strong>。{1,2} = {2,1}</td><td><strong>有</strong>。(1,2) ≠ (2,1)</td></tr>
+          <tr><td>能重复吗</td><td><strong>不能</strong>。{1,1} 就是 {1}</td><td><strong>能</strong>。(1,1) 是合法的二维向量</td></tr>
+          <tr><td>长度固定吗</td><td>不固定</td><td><strong>固定</strong>，维度是整个空间的约定</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">
+      这两个区别在 02 · 03 的 lookup 论证里非常关键 —— 那里要区分「集合相等」和「多重集相等」。
+    </p>
+
+    <h3>两种运算：加法和数乘</h3>
+    <p>两个向量相加，就是<strong>逐位相加</strong>。一个数乘一个向量，就是<strong>每个分量都乘</strong>。</p>
+    <div class="fml" style="text-align:left;font-size:13.5px;line-height:2.2">
+      ( 1, 2, 3 ) + ( 4, 5, 6 ) = ( 5, 7, 9 ) &nbsp;&nbsp;<span style="color:#7C8894">← 逐位相加</span><br>
+      2 · ( 1, 2, 3 ) = ( 2, 4, 6 ) &nbsp;&nbsp;<span style="color:#7C8894">← 每个分量都乘 2</span><br>
+      ( 1, 2, 3 ) − ( 4, 5, 6 ) = ( −3, −3, −3 ) &nbsp;&nbsp;<span style="color:#7C8894">← 减法就是加逆元</span>
+    </div>
+    <p>
+      注意最后一行：减法不是新运算，是「加上负向量」。这和 00 · 02 里「群只有加法，减法靠逆元」是同一件事。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">长度 n 的向量，配上加法，就是一个群</span>
+        <p>
+          封闭（加完还是 n 维）、结合、单位元是零向量 <code>(0,…,0)</code>、每个向量有逆元（取负）。
+          而且可交换 —— 所以是<strong>阿贝尔群</strong>，记作 <code>𝔽<sub>p</sub><sup>n</sup></code>。<br>
+          这就是为什么 02 · 06 折叠方案里可以直接写 <code>u + v</code>，不需要解释。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>内积：把两个向量压成一个数</h2>
+    <p class="lead">
+      这是本页最重要的一个运算。它<strong>吃两个同长度的向量，吐一个数</strong>。
+    </p>
+    <div class="fml">
+      ⟨ <em>a</em>, <em>b</em> ⟩ = <em>a</em><sub>1</sub><em>b</em><sub>1</sub> + <em>a</em><sub>2</sub><em>b</em><sub>2</sub> + ⋯ + <em>a<sub>n</sub></em><em>b<sub>n</sub></em> = Σ<sub><em>i</em></sub> <em>a<sub>i</sub></em><em>b<sub>i</sub></em>
+      <span class="lbl">逐位相乘，然后全加起来。也叫「点积」「内积」，英文 inner product / dot product</span>
+    </div>
+    <p>手算一个：</p>
+    <div class="fml" style="text-align:left;font-size:13.5px;line-height:2.15">
+      <em>a</em> = ( 2, 0, 3 ) ， <em>b</em> = ( 1, 5, 4 )<br>
+      ⟨<em>a</em>,<em>b</em>⟩ = 2×1 + 0×5 + 3×4 = 2 + 0 + 12 = <strong>14</strong>
+      <span class="lbl" style="text-align:left">注意中间那一项：0×5 = 0，直接消失。这就是「稀疏」的意思</span>
+    </div>
+
+    <h3>三条必须记住的性质</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:230px">性质</th><th>写法</th></tr></thead>
+        <tbody>
+          <tr><td><strong>对称</strong></td><td><code>⟨a,b⟩ = ⟨b,a⟩</code>。交换顺序结果一样</td></tr>
+          <tr><td><strong>对第一项线性</strong></td><td><code>⟨a+b, c⟩ = ⟨a,c⟩ + ⟨b,c⟩</code>，<code>⟨ka, b⟩ = k⟨a,b⟩</code></td></tr>
+          <tr><td><strong>退化性</strong></td><td><code>⟨a,a⟩ = 0</code> 当且仅当 <code>a</code> 是零向量</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      第二条「线性」是全部关键。它意味着内积<strong>可以拆开、可以提系数</strong> ——
+      所以当你看到 <code>⟨a, w⟩</code> 时，可以把它理解成「用 a 里的系数，把 w 的分量加权求和」。
+    </p>
+
+    <div class="co note">
+      <div class="i">i</div>
+      <div>
+        <span class="t">在 ZKP 里，内积就是「一条约束左边等于多少」</span>
+        <p>
+          02 · 01 里的 <code>⟨a<sub>i</sub>, w⟩</code>，<code>a<sub>i</sub></code> 是矩阵第 i 行的系数，
+          <code>w</code> 是所有变量的取值。内积算出来的就是<strong>「第 i 条约束的左边那个线性表达式，代进具体取值后等于多少」</strong>。<br>
+          比如 <code>a<sub>i</sub> = (1, 0, 3, 0)</code>，<code>w = (x, y, z, t)</code>，
+          那 <code>⟨a<sub>i</sub>, w⟩ = x + 3z</code>。系数为 0 的项自动消失，正好对应「这个变量不参与这条约束」。
+        </p>
+      </div>
+    </div>
+
+    <h3>为什么 02 · 11 要专门叫「内积论证」</h3>
+    <p>
+      因为 Bulletproofs 的核心问题是：<strong>如何在不暴露 a、b 的前提下，证明我知道 ⟨a,b⟩ = v</strong>。
+      整个协议就是在「把内积拆成两半、递归折半」上做文章，最后证明大小只有 <code>O(log n)</code>。
+      不懂内积是什么，那一页从标题开始就是天书。
+    </p>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>矩阵：一堆行向量叠起来</h2>
+    <p class="lead">
+      矩阵没有神秘之处 —— 它就是<strong>把若干个同样长度的向量，一行一行摞起来</strong>。
+    </p>
+    <div class="fml">
+      <em>A</em> = <span style="display:inline-block;vertical-align:middle;border-left:2px solid #16202A;border-right:2px solid #16202A;padding:4px 10px">1 &nbsp; 0 &nbsp; 3<br>0 &nbsp; 2 &nbsp; 1</span>
+      <span class="lbl">这是一个 2×3 矩阵：2 行、3 列。第一行是向量 (1,0,3)，第二行是 (0,2,1)</span>
+    </div>
+    <p>
+      「<code>m × n</code>」读作「m 行 n 列」。<strong>先写行数，再写列数</strong> —— 这个顺序别记反，论文里所有矩阵都是这么标的。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:150px">叫法</th><th style="width:190px">长什么样</th><th>在 ZKP 里的对应</th></tr></thead>
+        <tbody>
+          <tr><td>行向量</td><td>矩阵的<strong>一行</strong>，横着</td><td>一条约束的系数 <code>a<sub>i</sub></code></td></tr>
+          <tr><td>列向量</td><td>矩阵的<strong>一列</strong>，竖着</td><td>一个变量在所有约束里的系数</td></tr>
+          <tr><td>方阵</td><td>行数 = 列数</td><td>较少见（ZKP 里 m ≠ n 是常态）</td></tr>
+          <tr><td>零矩阵</td><td>全是 0</td><td>某条约束不涉及某个乘数时的占位</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>矩阵乘向量：对每一行做一次内积</h3>
+    <p>这是唯一需要记的矩阵运算。<code>A·w</code> 的结果是一个<strong>向量</strong>，长度等于 A 的行数：</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      <em>A</em>·<em>w</em> 的第 <em>i</em> 个分量 = ⟨<em>A</em> 的第 <em>i</em> 行 , <em>w</em>⟩
+      <span class="lbl" style="text-align:left">就这么一句。矩阵乘向量 = 把每一行拎出来和内积一遍，结果排成一个新向量</span>
+    </div>
+    <p>手算：</p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.15">
+      <em>A</em> = [ 1 0 3 ; 0 2 1 ] &nbsp;,&nbsp; <em>w</em> = ( 2, 5, 1 )<br><br>
+      第 1 行： ⟨(1,0,3), (2,5,1)⟩ = 1×2 + 0×5 + 3×1 = 5<br>
+      第 2 行： ⟨(0,2,1), (2,5,1)⟩ = 0×2 + 2×5 + 1×1 = 11<br><br>
+      所以 <em>A</em>·<em>w</em> = ( 5, 11 )
+    </div>
+    <p>
+      这个 <code>(5, 11)</code> 就是「A 的两行各自的内积值」——
+      也就是两条约束里<strong>第一个因子</strong>算出来是多少（不是整条约束左边）。
+      02 · 01 里的 <code>A·w</code>、<code>B·w</code>、<code>C·w</code>，就是三个矩阵各自做一遍这个操作。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">形状对不上就乘不了</span>
+        <p>
+          <code>m×n</code> 的矩阵只能乘<strong>长度为 n</strong> 的向量，结果长度是 m。<br>
+          写论文时如果看到 <code>A ∈ 𝔽<sub>p</sub><sup>m×n</sup></code>、<code>w ∈ 𝔽<sub>p</sub><sup>n</sup></code>，
+          就是在声明这个匹配关系。形状不匹配的乘法在数学上<strong>没有定义</strong>，不是「算出来是零」。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>线性组合：一个你可能已经会了的词</h2>
+    <p class="lead">
+      「线性组合」听起来很学术，其实就是<strong>「各乘一个系数，再全加起来」</strong>。
+    </p>
+    <div class="fml">
+      <em>c</em><sub>1</sub><em>v</em><sub>1</sub> + <em>c</em><sub>2</sub><em>v</em><sub>2</sub> + ⋯ + <em>c<sub>k</sub></em><em>v<sub>k</sub></em>
+      <span class="lbl">c 是系数（标量），v 是向量。结果还是一个向量</span>
+    </div>
+    <p>
+      你其实已经见过它两次了：<strong>向量加法</strong>是「系数全是 1」的线性组合；
+      而<strong>内积</strong>可以看成一个「结果退化成单个数字」的线性组合 ——
+      系数取自另一个向量，加完之后不再是个向量，而是一个数。
+    </p>
+
+    <h3>为什么 ZKP 里到处是这个词</h3>
+    <p>
+      因为<strong>电路里每一条约束，本质都是一个线性组合等于另一个线性组合</strong>。
+      看一个具体例子，约束是 <code>x · y = z</code>，其中 x、y、z 是三个变量：
+    </p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.1">
+      令 <em>w</em> = ( 1, <em>x</em>, <em>y</em>, <em>z</em> ) &nbsp;&nbsp;<span style="color:#7C8894">← 第 0 位固定是 1，方便表达常数项</span><br>
+      <em>a</em> = ( 0, 1, 0, 0 ) &nbsp;⟹&nbsp; ⟨<em>a</em>,<em>w</em>⟩ = <em>x</em><br>
+      <em>b</em> = ( 0, 0, 1, 0 ) &nbsp;⟹&nbsp; ⟨<em>b</em>,<em>w</em>⟩ = <em>y</em><br>
+      <em>c</em> = ( 0, 0, 0, 1 ) &nbsp;⟹&nbsp; ⟨<em>c</em>,<em>w</em>⟩ = <em>z</em><br><br>
+      约束就是： ⟨<em>a</em>,<em>w</em>⟩ · ⟨<em>b</em>,<em>w</em>⟩ = ⟨<em>c</em>,<em>w</em>⟩ &nbsp;⟺&nbsp; <em>x</em>·<em>y</em> = <em>z</em>
+    </div>
+    <p>
+      看到了吗？<strong>「x 乘 y 等于 z」这条约束，被写成了三个内积</strong>。
+      系数里那些 0，就是「这个变量不参与」。
+    </p>
+    <p>
+      再复杂一点，如果约束是 <code>(x + 3z) · (2y + 1) = x</code>，那系数会变成
+      <code>a = (0,1,0,3)</code>、<code>b = (1,0,2,0)</code>、<code>c = (0,1,0,0)</code>。
+      <strong>无论表达式多长，只要它是「线性的」，就能塞进一个行向量里。</strong>
+      这里的「线性」指<strong>变量只以一次方出现</strong> —— 可以有 <code>3z</code>、<code>−7y</code>，
+      但不能有 <code>x·y</code> 或 <code>x²</code>。出现乘积，就必须单独开一条约束。
+    </p>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">这就是「算术化」的全部内容</span>
+        <p>
+          把一个程序（加减乘、赋值、条件）翻译成「一堆 <code>⟨a,w⟩·⟨b,w⟩ = ⟨c,w⟩</code>」的形式，
+          就叫 R1CS 算术化。<strong>翻译过程是工程，但目标形式就是这个式子。</strong>
+          02 · 01 会用一整页做这件事，你现在已经知道它要做什么了。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>秩：一条约束为什么只装得下一个乘法</h2>
+    <p class="lead">
+      这一节是 02 · 01 第 6 节「为什么不能有高次项」的数学解释。
+      如果读着吃力，可以先跳过，记住结论就行。
+    </p>
+
+    <h3>先看「外积」：一个向量乘一个向量，得到一个矩阵</h3>
+    <p>
+      前面讲的内积是「向量 × 向量 = 数」。外积是反过来：<strong>「向量 × 向量 = 矩阵」</strong>。
+    </p>
+    <div class="fml" style="text-align:left;font-size:13px;line-height:2.15">
+      <em>u</em> = ( 1, 2 ) &nbsp;,&nbsp; <em>v</em> = ( 3, 4 )<br><br>
+      <em>u</em> ⊗ <em>v</em> = [ 1×3 &nbsp; 1×4 ; 2×3 &nbsp; 2×4 ] = [ 3 &nbsp; 4 ; 6 &nbsp; 8 ]
+      <span class="lbl" style="text-align:left">第 i 行第 j 列 = u<sub>i</sub> · v<sub>j</sub>。就这么直接</span>
+    </div>
+
+    <h3>秩：这个矩阵里真正独立的有几行</h3>
+    <p>
+      看上面那个矩阵：<code>[3, 4]</code> 和 <code>[6, 8]</code>。
+      第二行<strong>正好是第一行的 2 倍</strong> —— 它没有带来任何新信息。
+    </p>
+    <div class="fml">
+      秩 = 2 &nbsp;：&nbsp; 两行真的独立
+      <br>
+      秩 = 1 &nbsp;：&nbsp; 所有行都是同一行的倍数
+      <span class="lbl">秩就是「去掉冗余之后，还剩几行真正不同的」（对两行的矩阵而言，就是这两种情况）</span>
+    </div>
+    <p>
+      外积得到的矩阵，<strong>秩永远是 1</strong>（只要 u、v 不是零向量）。
+      因为它的每一行都是 <code>u<sub>i</sub> · v</code>，都是同一个向量 v 的倍数。
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th style="width:210px">矩阵</th><th style="width:110px">秩</th><th>为什么</th></tr></thead>
+        <tbody>
+          <tr><td><code>[3, 4 ; 6, 8]</code></td><td><strong>1</strong></td><td>第二行 = 2 × 第一行，冗余</td></tr>
+          <tr><td><code>[1, 0 ; 0, 1]</code></td><td><strong>2</strong></td><td>两行完全独立，谁也凑不出谁</td></tr>
+          <tr><td><code>[2, 4 ; 3, 5]</code></td><td><strong>2</strong></td><td>3/2 ≠ 5/4，不成比例</td></tr>
+          <tr><td><code>[1, 2, 3 ; 2, 4, 6]</code></td><td><strong>1</strong></td><td>第二行 = 2 × 第一行</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>把它接到 R1CS 上</h3>
+    <p>
+      每条 R1CS 约束是 <code>⟨a,w⟩ · ⟨b,w⟩ = ⟨c,w⟩</code>。
+      左边是两个数相乘 —— 展开成「w 的二次型」时，二次项的系数矩阵恰好是 <code>a</code> 和 <code>b</code> 的外积。
+    </p>
+    <div class="fml">
+      二次项部分 = <em>a</em> ⊗ <em>b</em> &nbsp;&nbsp;⟹&nbsp;&nbsp; 秩恒为 1
+      <span class="lbl">所以每条 R1CS 约束只能承载「一个」二次项结构，不能塞进两个独立的乘法</span>
+    </div>
+    <p>
+      这就是为什么写电路时，一行里出现两个乘法必须拆成两条约束。
+      不是因为编译器笨，是因为<strong>秩只有 1，装不下第二个</strong>。
+    </p>
+    <div class="co warn">
+      <div class="i">!</div>
+      <div>
+        <span class="t">这里我做了简化，说明一下</span>
+        <p>
+          严格的秩定义是「列空间（或行空间）的维数」，需要先讲「张成」「线性无关」。
+          这一页只给了<strong>可操作的直觉</strong>：「成比例的几行算一行」。<br>
+          这个直觉足以读懂 02 · 01 的论证，但如果你之后要看形式化证明，
+          需要补「线性无关」和「维数」的严格定义 —— 那部分暂时用不上，先欠着。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>手算：从两条约束到矩阵</h2>
+    <p class="lead">
+      把这一页的东西串一遍。电路里有三个变量 <code>x, y, z</code>，约束是：
+      <code>x·y = z</code>、<code>(x+1)·z = y</code>。
+    </p>
+    <div class="steps">
+      <div class="st">
+        <div class="d">1</div>
+        <h4>定向量</h4>
+        <p>变量向量 <code>w = (1, x, y, z)</code>，长度 4。第 0 位固定为 1，用来放常数。</p>
+      </div>
+      <div class="st">
+        <div class="d">2</div>
+        <h4>第一条约束的系数</h4>
+        <p>
+          <code>x·y = z</code>：<br>
+          <code>a₁ = (0, 1, 0, 0)</code> → ⟨a₁,w⟩ = x<br>
+          <code>b₁ = (0, 0, 1, 0)</code> → ⟨b₁,w⟩ = y<br>
+          <code>c₁ = (0, 0, 0, 1)</code> → ⟨c₁,w⟩ = z
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">3</div>
+        <h4>第二条约束的系数</h4>
+        <p>
+          <code>(x+1)·z = y</code>：注意 <code>x+1</code> 里的 1 要用第 0 位表示。<br>
+          <code>a₂ = (1, 1, 0, 0)</code> → ⟨a₂,w⟩ = 1 + x<br>
+          <code>b₂ = (0, 0, 0, 1)</code> → ⟨b₂,w⟩ = z<br>
+          <code>c₂ = (0, 0, 1, 0)</code> → ⟨c₂,w⟩ = y
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">4</div>
+        <h4>堆成矩阵</h4>
+        <p>
+          两行摞起来，得到三个 <code>2×4</code> 的矩阵：<br>
+          <code>A = [0,1,0,0 ; 1,1,0,0]</code><br>
+          <code>B = [0,0,1,0 ; 0,0,0,1]</code><br>
+          <code>C = [0,0,0,1 ; 0,0,1,0]</code>
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">5</div>
+        <h4>代一组具体值验算</h4>
+        <p>
+          取 <code>x=2, y=3, z=6</code>（满足 x·y=z），则 <code>w = (1,2,3,6)</code>。<br>
+          <code>A·w</code> 第 1 行：0·1+1·2+0·3+0·6 = <strong>2</strong>（= x ✓）<br>
+          <code>B·w</code> 第 1 行：0+0+1·3+0 = <strong>3</strong>（= y ✓）<br>
+          <code>C·w</code> 第 1 行：0+0+0+1·6 = <strong>6</strong>（= z ✓）<br>
+          检查 2 × 3 = 6 ✓ 第一条约束成立。
+        </p>
+      </div>
+      <div class="st">
+        <div class="d">6</div>
+        <h4>验第二条</h4>
+        <p>
+          <code>A·w</code> 第 2 行：1·1 + 1·2 + 0 + 0 = <strong>3</strong>（= x+1 ✓）<br>
+          <code>B·w</code> 第 2 行：0+0+0+1·6 = <strong>6</strong>（= z ✓）<br>
+          <code>C·w</code> 第 2 行：0+0+1·3+0 = <strong>3</strong>（= y ✓）<br>
+          检查 3 × 6 = 18 ≠ 3 —— <strong>第二条不成立</strong>。
+        </p>
+      </div>
+    </div>
+    <div class="co ok">
+      <div class="i">✓</div>
+      <div>
+        <span class="t">注意第 6 步的结果</span>
+        <p>
+          约束不成立，说明 <code>x=2, y=3, z=6</code> 这组赋值<strong>不是合法见证</strong>。
+          但注意：<code>x·y=z</code> 是满足的。真正卡住的是第二条 <code>(x+1)·z=y</code>，
+          代进去是 <code>3×6=18</code>，而右边是 <code>3</code>。<br>
+          <strong>这正是验证者要检查的东西</strong>：不是「你觉得对不对」，而是每个内积算出来、再逐条比对。<br>
+          只要<strong>有一条</strong>不成立，整组赋值就被拒绝 —— 验证者不需要知道你错在哪一条，也不能被你「大部分都对」说服。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>小结与常见误区</h2>
+    <div class="recap">
+      <h4>你应该带走的</h4>
+      <ul>
+        <li><strong>向量</strong> = 一串有序、可重复的数。和集合的区别是「有序」和「可重复」。</li>
+        <li><strong>内积</strong> <code>⟨a,b⟩ = Σaᵢbᵢ</code>：两个向量 → 一个数。满足对称、线性、退化性。</li>
+        <li><strong>矩阵乘向量</strong> = 对每一行做内积，结果是向量。<code>m×n</code> 只能乘长度 n 的向量。</li>
+        <li><strong>线性组合</strong> = 各乘系数再加起来。电路里每条约束都是「线性组合 × 线性组合 = 线性组合」。</li>
+        <li><strong>秩</strong> = 去掉成比例的行之后还剩几行。<strong>外积的秩恒为 1</strong>，这解释了为什么一条 R1CS 只能有一个乘法。</li>
+        <li>整套算术化就是：把程序翻译成一堆 <code>⟨a,w⟩·⟨b,w⟩ = ⟨c,w⟩</code>。</li>
+      </ul>
+    </div>
+
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「向量就是带箭头的线段，有方向和长度。」</span></div>
+      <div class="r"><i>✓</i><div>那是物理里的几何向量，只是<strong>一种</strong>可视化方式。
+        这里用的是「一串数」，没有箭头、没有长度概念（因为 <code>𝔽<sub>p</sub></code> 里没有大小顺序）。
+        画成箭头只是为了帮助想象，别把它当定义。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「内积和外积是一对反运算。」</span></div>
+      <div class="r"><i>✓</i><div>不是。它们输入输出<strong>类型都不同</strong>：
+        内积是「向量 × 向量 → 数」，外积是「向量 × 向量 → 矩阵」。
+        没有互逆关系，只是名字对仗。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「矩阵乘法就是对应位置相乘。」</span></div>
+      <div class="r"><i>✓</i><div>那是<strong>逐元素乘</strong>（Hadamard 积），符号是 <code>⊙</code>。
+        普通矩阵乘法的规则是「行 × 列做内积」，完全不同。论文里两种都会出现，看符号区分。</div></div>
+    </div>
+    <div class="myth">
+      <div class="w"><i>✕</i><span>「秩越大越好 / 越小越好。」</span></div>
+      <div class="r"><i>✓</i><div>没有好坏，是<strong>结构约束</strong>。
+        在 R1CS 里秩 ≤ 1 是<strong>被迫的</strong>（因为一条约束只容一个乘法），
+        在矩阵编码里秩小反而意味着压缩率高。看语境。</div></div>
+    </div>
+  </section>
+
+  <div class="pager">
+    <a href="00-05-notation.html">
+      <span class="pl">← 上一模块 · 00 · 05</span>
+      <span class="pt">符号黑话</span>
+    </a>
+    <a href="02-01-arithmetization.html">
+      <span class="pl">学完可直接读 · 02 · 01</span>
+      <span class="pt">算术化：把程序变成矩阵 →</span>
+    </a>
+  </div>
+
+</main>
+</div>
+<script src="assets/nav.js"></script>
+</body>
+</html>
